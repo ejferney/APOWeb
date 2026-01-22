@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Alpha Phi Omega - Member Portal</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@100..900&display=swap" rel="stylesheet"/>
+    <!-- Material Symbols -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ec5b13",
+                        "primary-dark": "#c44a0f",
+                        "primary-hover": "#d65111",
+                        "accent": "#f5c518",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#0f1115",
+                        "card-light": "#ffffff",
+                        "card-dark": "#161b22",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1c2128",
+                        "border-light": "#e2e8f0",
+                        "border-dark": "#30363d",
+                        "text-main": "#f0f6fc",
+                        "text-secondary": "#8b949e",
+                        "event-fellowship": "#10b981",
+                        "event-meeting": "#fbbf24",
+                    },
+                    fontFamily: {
+                        "sans": ["'Public Sans'", "sans-serif"]
+                    },
+                    borderRadius: { 
+                        "DEFAULT": "0.5rem", 
+                        "md": "0.5rem",
+                        "lg": "0.5rem", 
+                        "xl": "0.75rem", 
+                        "2xl": "1rem", 
+                        "full": "9999px" 
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        body { font-family: 'Public Sans', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .icon-filled { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+        .dark ::-webkit-scrollbar-thumb { background: #30363d; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-text-main antialiased">
+    <div id="root"></div>
+
+    <!-- React, ReactDOM, Babel, Router -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/history@5/umd/history.development.js"></script>
+    <script src="https://unpkg.com/react-router@6.3.0/umd/react-router.development.js"></script>
+    <script src="https://unpkg.com/react-router-dom@6.3.0/umd/react-router-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { createRoot } = ReactDOM;
+        const { MemoryRouter, Routes, Route, Link, useNavigate, useLocation } = ReactRouterDOM;
+
+        // --- Shared Components ---
+
+        const Sidebar = ({ isOfficer = false }) => {
+            const location = useLocation();
+            const navigate = useNavigate();
+
+            const menuItems = [
+                { label: 'Dashboard', icon: 'dashboard', path: '/' },
+                { label: 'Calendar', icon: 'calendar_month', path: '/calendar' },
+                { label: 'Service Logs', icon: 'history_edu', path: '/service-log' },
+                { label: 'Directory', icon: 'groups', path: '/directory' },
+            ];
+
+            const officerTools = [
+                { label: 'Officer Home', icon: 'shield_person', path: '/officer' },
+                { label: 'Finances', icon: 'attach_money', path: '#' },
+                { label: 'Approvals', icon: 'checklist', path: '#' },
+            ];
+
+            return (
+                <aside className="w-64 flex-shrink-0 flex flex-col bg-[#0d1117] border-r border-border-dark hidden md:flex h-full">
+                    <div className="p-6 flex items-center gap-3">
+                        <div className="size-10 rounded-lg bg-gradient-to-br from-primary to-orange-700 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary/20">
+                            APO
+                        </div>
+                        <div className="flex flex-col">
+                            <h1 className="text-white text-base font-bold leading-tight">Alpha Phi Omega</h1>
+                            <p className="text-slate-400 text-xs font-medium tracking-wide">Gamma Pi Chapter</p>
+                        </div>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-1">
+                        <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-2">Menu</p>
+                        {menuItems.map(item => (
+                            <Link 
+                                key={item.label}
+                                to={item.path}
+                                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${location.pathname === item.path ? 'bg-primary text-white shadow-md shadow-primary/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                            >
+                                <span className="material-symbols-outlined">{item.icon}</span>
+                                <span className="text-sm font-medium">{item.label}</span>
+                            </Link>
+                        ))}
+
+                        {isOfficer && (
+                            <React.Fragment>
+                                <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6">Officer Tools</p>
+                                {officerTools.map(item => (
+                                    <Link 
+                                        key={item.label}
+                                        to={item.path}
+                                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${location.pathname === item.path ? 'bg-primary text-white shadow-md shadow-primary/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                                    >
+                                        <span className="material-symbols-outlined">{item.icon}</span>
+                                        <span className="text-sm font-medium">{item.label}</span>
+                                    </Link>
+                                ))}
+                            </React.Fragment>
+                        )}
+                    </div>
+
+                    <div className="p-4 border-t border-border-dark">
+                        <div className="flex flex-col gap-1 mb-4">
+                            <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors text-sm font-medium">
+                                <span className="material-symbols-outlined text-[20px]">settings</span>
+                                <span>Settings</span>
+                            </button>
+                            <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors text-sm font-medium">
+                                <span className="material-symbols-outlined text-[20px]">logout</span>
+                                <span>Log Out</span>
+                            </button>
+                        </div>
+                        <div className="flex items-center gap-3 px-2 py-2 rounded-lg bg-white/5 border border-white/10">
+                            <div className="size-8 rounded-full bg-slate-600 bg-cover bg-center" style={{backgroundImage: "url('https://api.dicebear.com/7.x/avataaars/svg?seed=Alex')"}}></div>
+                            <div className="flex flex-col overflow-hidden">
+                                <p className="text-sm font-medium text-white truncate">Brother Alex</p>
+                                <p className="text-xs text-slate-400 truncate">Active Member</p>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            );
+        };
+
+        const MobileHeader = () => (
+            <div className="md:hidden flex items-center justify-between p-4 bg-white dark:bg-card-dark border-b border-slate-200 dark:border-border-dark sticky top-0 z-20">
+                <div className="font-bold text-primary flex items-center gap-2">
+                    <div className="size-8 rounded-lg bg-primary flex items-center justify-center text-white">APO</div>
+                    <span className="text-sm font-black dark:text-white">PORTAL</span>
+                </div>
+                <button className="p-2 text-slate-600 dark:text-slate-300">
+                    <span className="material-symbols-outlined">menu</span>
+                </button>
+            </div>
+        );
+
+        // --- Screen Components ---
+
+        const DashboardPage = ({ isOfficer }) => {
+            const navigate = useNavigate();
+            return (
+                <div className="flex h-screen w-full">
+                    <Sidebar isOfficer={isOfficer} />
+                    <main className="flex-1 flex flex-col h-full overflow-y-auto overflow-x-hidden relative">
+                        <MobileHeader />
+                        <div className="max-w-[1200px] w-full mx-auto p-6 md:p-10 flex flex-col gap-8">
+                            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                                <div className="flex flex-col gap-1">
+                                    <h1 className="text-slate-900 dark:text-white text-3xl font-black tracking-tight">Welcome back, Brother Alex</h1>
+                                    <p className="text-slate-500 dark:text-text-secondary text-base font-normal">Today is October 24, 2023. You have 2 upcoming tasks.</p>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button className="flex items-center justify-center gap-2 h-10 px-5 rounded-lg bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark text-slate-700 dark:text-text-main text-sm font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+                                        <span className="material-symbols-outlined text-[18px]">payments</span>
+                                        <span>Pay Dues</span>
+                                    </button>
+                                    <button onClick={() => navigate('/service-log')} className="flex items-center justify-center gap-2 h-10 px-5 rounded-lg bg-primary hover:bg-primary-dark text-white text-sm font-bold shadow-md shadow-primary/20 transition-all">
+                                        <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                                        <span>Log Hours</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="md:col-span-1 bg-white dark:bg-card-dark rounded-xl p-6 border border-slate-200 dark:border-border-dark shadow-sm relative overflow-hidden group hover:border-primary transition-colors">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <p className="text-slate-500 dark:text-text-secondary text-xs font-bold uppercase tracking-widest">Service Hours</p>
+                                            <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">20 / 25</h3>
+                                        </div>
+                                        <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                                            <span className="material-symbols-outlined">handshake</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-6">
+                                        <div className="relative size-24 shrink-0 rounded-full bg-[conic-gradient(var(--tw-gradient-stops))] from-primary via-primary via-[80%] to-slate-200 dark:to-border-dark to-[80%] flex items-center justify-center">
+                                            <div className="bg-white dark:bg-card-dark rounded-full size-20 flex items-center justify-center">
+                                                <span className="text-lg font-bold text-primary">80%</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <p className="text-sm font-bold text-slate-900 dark:text-white">Keep it up!</p>
+                                            <p className="text-xs text-slate-500 dark:text-text-secondary leading-relaxed font-medium">You only need 5 more hours to reach your semester goal.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col justify-between bg-white dark:bg-card-dark rounded-xl p-6 border border-slate-200 dark:border-border-dark shadow-sm group hover:border-emerald-500/50 transition-colors">
+                                    <div>
+                                        <div className="flex justify-between items-start">
+                                            <p className="text-slate-500 dark:text-text-secondary text-xs font-bold uppercase tracking-widest">Fellowship</p>
+                                            <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg text-emerald-600 dark:text-emerald-400">
+                                                <span className="material-symbols-outlined">diversity_3</span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 flex items-end gap-2">
+                                            <h3 className="text-3xl font-black text-slate-900 dark:text-white">5</h3>
+                                            <span className="text-sm text-slate-500 dark:text-text-secondary mb-1.5 font-bold">/ 10 credits</span>
+                                        </div>
+                                    </div>
+                                    <div className="w-full bg-slate-100 dark:bg-border-dark rounded-full h-2 mt-4">
+                                        <div className="bg-emerald-500 h-2 rounded-full" style={{width: '50%'}}></div>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col justify-between bg-white dark:bg-card-dark rounded-xl p-6 border border-slate-200 dark:border-border-dark shadow-sm group hover:border-accent/50 transition-colors">
+                                    <div>
+                                        <div className="flex justify-between items-start">
+                                            <p className="text-slate-500 dark:text-text-secondary text-xs font-bold uppercase tracking-widest">Leadership</p>
+                                            <div className="p-2 bg-accent/10 rounded-lg text-accent">
+                                                <span className="material-symbols-outlined">stars</span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 flex items-end gap-2">
+                                            <h3 className="text-3xl font-black text-slate-900 dark:text-white">2</h3>
+                                            <span className="text-sm text-slate-500 dark:text-text-secondary mb-1.5 font-bold">/ 3 credits</span>
+                                        </div>
+                                    </div>
+                                    <div className="w-full bg-slate-100 dark:bg-border-dark rounded-full h-2 mt-4">
+                                        <div className="bg-accent h-2 rounded-full" style={{width: '66%'}}></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                <div className="lg:col-span-2 flex flex-col gap-4">
+                                    <div className="flex items-center justify-between">
+                                        <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-primary">campaign</span>
+                                            Chapter Announcements
+                                        </h2>
+                                        <a className="text-sm font-bold text-primary hover:text-primary-dark" href="#">View All</a>
+                                    </div>
+                                    <div className="flex flex-col bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl shadow-sm divide-y divide-slate-100 dark:divide-border-dark">
+                                        <AnnouncementItem 
+                                            name="Sarah Jenkins" 
+                                            role="Treasurer" 
+                                            time="2 hours ago" 
+                                            title="Dues Deadline Extended" 
+                                            content="Due to the recent bank holiday, we are extending the deadline for semester dues by 48 hours."
+                                            img="https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah"
+                                        />
+                                        <AnnouncementItem 
+                                            name="Michael Chen" 
+                                            role="VP Service" 
+                                            time="Yesterday" 
+                                            title="Signups open for Campus Cleanup" 
+                                            content="We need 15 more volunteers for this Saturday's cleanup event behind the Science Center."
+                                            img="https://api.dicebear.com/7.x/avataaars/svg?seed=Michael"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="lg:col-span-1 flex flex-col gap-4">
+                                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Next Event</h2>
+                                    <div className="bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl shadow-md overflow-hidden flex flex-col h-full group">
+                                        <div className="h-32 w-full bg-slate-200 bg-cover bg-center relative" style={{backgroundImage: "url('https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&q=80&w=400')"}}>
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
+                                            <div className="absolute bottom-3 left-4">
+                                                <span className="px-2 py-1 rounded bg-accent text-slate-900 text-[10px] font-black uppercase tracking-widest">Mandatory</span>
+                                            </div>
+                                        </div>
+                                        <div className="p-5 flex flex-col gap-4 flex-1">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900 dark:text-white leading-tight">Weekly Chapter Meeting</h3>
+                                                <div className="flex items-center gap-2 mt-2 text-slate-500 dark:text-text-secondary text-sm font-medium">
+                                                    <span className="material-symbols-outlined text-[18px]">location_on</span>
+                                                    <span>Student Union, Room 302</span>
+                                                </div>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-background-dark/50 rounded-lg p-3 flex justify-around items-center border border-slate-100 dark:border-border-dark">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-lg font-black text-primary">02</span>
+                                                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Days</span>
+                                                </div>
+                                                <div className="text-slate-300 text-xl font-light">:</div>
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-lg font-black text-primary">14</span>
+                                                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Hrs</span>
+                                                </div>
+                                                <div className="text-slate-300 text-xl font-light">:</div>
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-lg font-black text-primary">30</span>
+                                                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Mins</span>
+                                                </div>
+                                            </div>
+                                            <div className="mt-auto">
+                                                <button onClick={() => navigate('/calendar')} className="w-full py-2.5 rounded-lg bg-primary text-white text-sm font-bold shadow-lg hover:shadow-xl hover:bg-primary-dark transition-all flex items-center justify-center gap-2">
+                                                    <span>RSVP Now</span>
+                                                    <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const AnnouncementItem = ({ name, role, time, title, content, img }) => (
+            <div className="p-5 flex gap-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer group">
+                <div className="size-10 rounded-lg bg-slate-200 flex-shrink-0 bg-cover bg-center border border-border-dark" style={{backgroundImage: `url('${img}')`}}></div>
+                <div className="flex flex-col flex-1 gap-1">
+                    <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">{name}</span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-widest ${role === 'Treasurer' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>{role}</span>
+                        </div>
+                        <span className="text-xs text-slate-400 font-medium whitespace-nowrap">{time}</span>
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-1">{title}</h4>
+                    <p className="text-sm text-slate-600 dark:text-text-secondary leading-relaxed font-medium">{content}</p>
+                </div>
+            </div>
+        );
+
+        const ServiceLogPage = ({ isOfficer }) => {
+            const navigate = useNavigate();
+            const [isModalOpen, setModalOpen] = useState(false);
+            return (
+                <div className="flex h-screen w-full">
+                    <Sidebar isOfficer={isOfficer} />
+                    <main className="flex-1 flex flex-col h-full overflow-y-auto">
+                        <MobileHeader />
+                        <div className="max-w-[1200px] w-full mx-auto p-6 md:p-10">
+                            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+                                <div className="flex flex-col gap-1">
+                                    <h2 className="text-3xl md:text-4xl font-black tracking-tight text-gray-900 dark:text-white">Service Log</h2>
+                                    <p className="text-gray-500 dark:text-text-secondary text-base font-medium">Manage your progress towards active status requirements.</p>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm font-bold text-primary">
+                                    <span className="material-symbols-outlined text-[18px]">calendar_today</span>
+                                    <span className="uppercase tracking-widest">Fall Semester 2023</span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+                                <StatCard title="Total Hours" value="28.5" target="/ 30" progress={95} icon="schedule" iconBg="primary" />
+                                <StatCard title="Pending Review" value="4.0" target="hrs" progress={0} icon="hourglass_top" iconBg="primary" subtitle="2 events awaiting officer check" />
+                                <StatCard title="Chapter Status" value="Active Good Standing" icon="verified" iconBg="primary" subtitle="All requirements on track" />
+                            </div>
+
+                            <div className="bg-white dark:bg-card-dark rounded-xl border border-gray-200 dark:border-border-dark shadow-sm overflow-hidden">
+                                <div className="p-4 flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50/50 dark:bg-background-dark/50 border-b border-gray-100 dark:border-border-dark">
+                                    <div className="relative w-full sm:w-auto sm:min-w-[320px]">
+                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+                                        <input className="block w-full pl-10 pr-3 py-2 border border-gray-200 dark:border-border-dark bg-white dark:bg-card-dark rounded-lg text-sm" placeholder="Search my logs..." type="text"/>
+                                    </div>
+                                    <button onClick={() => setModalOpen(true)} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 text-sm font-black text-white bg-primary rounded-lg shadow-md shadow-primary/20 hover:bg-primary-hover transition-all">
+                                        <span className="material-symbols-outlined text-[20px]">add</span>
+                                        <span className="uppercase tracking-widest">Log Hours</span>
+                                    </button>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-gray-50/30 dark:bg-background-dark/30 border-b border-gray-200 dark:border-border-dark">
+                                                <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Date</th>
+                                                <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Event Name</th>
+                                                <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Category</th>
+                                                <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Hours</th>
+                                                <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Status</th>
+                                                <th className="px-6 py-4"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100 dark:divide-border-dark">
+                                            <LogRow date="Oct 24, 2023" name="Campus Cleanup" category="Service" hours="2.5 hrs" status="Approved" />
+                                            <LogRow date="Oct 20, 2023" name="Chapter Meeting" category="Leadership" hours="1.0 hr" status="Pending" />
+                                            <LogRow date="Oct 15, 2023" name="Food Bank Shift" category="Service" hours="3.0 hrs" status="Approved" />
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+
+                    {isModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                            <div className="bg-white dark:bg-card-dark w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-gray-200 dark:border-border-dark">
+                                <div className="px-6 py-4 border-b border-gray-100 dark:border-border-dark flex justify-between items-center bg-gray-50 dark:bg-background-dark/50">
+                                    <h3 className="text-lg font-black uppercase tracking-tight">Log New Hours</h3>
+                                    <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><span className="material-symbols-outlined">close</span></button>
+                                </div>
+                                <div className="p-6 space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="col-span-2">
+                                            <label className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-1.5">Event Name</label>
+                                            <input type="text" className="w-full rounded-lg border-gray-200 dark:border-border-dark dark:bg-background-dark dark:text-white text-sm focus:ring-primary focus:border-primary" placeholder="e.g. Campus Cleanup"/>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-1.5">Date</label>
+                                            <input type="date" className="w-full rounded-lg border-gray-200 dark:border-border-dark dark:bg-background-dark dark:text-white text-sm focus:ring-primary focus:border-primary"/>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-1.5">Hours Claimed</label>
+                                            <input type="number" className="w-full rounded-lg border-gray-200 dark:border-border-dark dark:bg-background-dark dark:text-white text-sm focus:ring-primary focus:border-primary" placeholder="0.0"/>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="px-6 py-4 bg-gray-50 dark:bg-background-dark/50 border-t border-gray-100 dark:border-border-dark flex justify-end gap-3">
+                                    <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700">Cancel</button>
+                                    <button onClick={() => setModalOpen(false)} className="px-6 py-2 text-sm font-black text-white bg-primary rounded-lg shadow-md shadow-primary/20 hover:bg-primary-dark transition-all">Submit Log</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const StatCard = ({ title, value, target, progress, icon, iconBg, subtitle }) => (
+            <div className="bg-white dark:bg-card-dark rounded-xl border border-gray-200 dark:border-border-dark p-6 flex flex-col justify-between shadow-sm group hover:border-primary transition-colors">
+                <div className="flex items-start justify-between">
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-gray-500">{title}</p>
+                        <h3 className="mt-2 text-2xl md:text-3xl font-black">{value} <span className="text-lg text-gray-400 font-bold">{target}</span></h3>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+                        <span className="material-symbols-outlined">{icon}</span>
+                    </div>
+                </div>
+                {progress !== undefined && (
+                    <div className="mt-4 w-full bg-gray-100 dark:bg-border-dark rounded-full h-1.5">
+                        <div className="bg-primary h-1.5 rounded-full transition-all duration-700" style={{width: `${progress}%`}}></div>
+                    </div>
+                )}
+                {subtitle && <p className="mt-4 text-xs font-medium text-gray-500">{subtitle}</p>}
+            </div>
+        );
+
+        const LogRow = ({ date, name, category, hours, status }) => (
+            <tr className="group hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                <td className="px-6 py-4 text-sm font-medium text-gray-500 whitespace-nowrap">{date}</td>
+                <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white group-hover:text-primary transition-colors">{name}</td>
+                <td className="px-6 py-4">
+                    <span className={`px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${category === 'Service' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}`}>{category}</span>
+                </td>
+                <td className="px-6 py-4 text-sm font-bold">{hours}</td>
+                <td className="px-6 py-4">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-400'}`}>
+                        <span className={`size-1.5 rounded-full ${status === 'Approved' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-gray-400 animate-pulse'}`}></span>
+                        {status}
+                    </span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                    <button className="text-gray-400 hover:text-primary transition-colors"><span className="material-symbols-outlined text-[20px]">more_vert</span></button>
+                </td>
+            </tr>
+        );
+
+        const DirectoryPage = ({ isOfficer }) => {
+            const [view, setView] = useState('grid');
+            return (
+                <div className="flex h-screen w-full">
+                    <Sidebar isOfficer={isOfficer} />
+                    <main className="flex-1 flex flex-col h-full overflow-y-auto">
+                        <MobileHeader />
+                        <div className="max-w-[1280px] w-full mx-auto px-6 md:px-10 py-10">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                                <div className="flex flex-col gap-1">
+                                    <h1 className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">Brother Directory</h1>
+                                    <p className="text-text-secondary font-medium">Gamma Pi Chapter Membership Roster</p>
+                                </div>
+                                <div className="flex items-center gap-2 bg-white dark:bg-card-dark border border-border-dark p-1 rounded-lg">
+                                    <button onClick={() => setView('grid')} className={`p-2 rounded-md ${view === 'grid' ? 'bg-primary text-white' : 'text-text-secondary hover:bg-white/5'}`}><span className="material-symbols-outlined">grid_view</span></button>
+                                    <button onClick={() => setView('list')} className={`p-2 rounded-md ${view === 'list' ? 'bg-primary text-white' : 'text-text-secondary hover:bg-white/5'}`}><span className="material-symbols-outlined">view_list</span></button>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col lg:flex-row gap-8">
+                                <aside className="w-full lg:w-72 flex-shrink-0 space-y-6">
+                                    <div className="bg-white dark:bg-card-dark rounded-xl p-6 border border-border-dark shadow-sm">
+                                        <div className="relative mb-6">
+                                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">search</span>
+                                            <input className="w-full pl-10 pr-4 py-2.5 bg-background-light dark:bg-background-dark border-border-dark rounded-lg text-sm focus:ring-primary focus:border-primary" placeholder="Search brothers..." type="text"/>
+                                        </div>
+                                        <FilterSection title="Status" options={['Active', 'Associate', 'Alumni', 'Pledge']} counts={[124, 45, 890, 22]} />
+                                        <div className="h-px bg-border-dark my-6"></div>
+                                        <FilterSection title="Major" options={['CS', 'Business', 'Bio', 'Eng']} counts={[24, 15, 8, 12]} />
+                                    </div>
+                                    <button className="w-full py-3 bg-primary text-white font-black uppercase tracking-widest rounded-lg shadow-lg shadow-primary/20 hover:bg-primary-dark transition-all flex items-center justify-center gap-2">
+                                        <span className="material-symbols-outlined">person_add</span>
+                                        Invite Member
+                                    </button>
+                                </aside>
+
+                                <div className="flex-1">
+                                    {view === 'grid' ? (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                                            <MemberCard name="Alex Thompson" major="Computer Science" year="2024" status="Active" committee="Service Comm." img="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex" />
+                                            <MemberCard name="Sarah Jenkins" major="Psychology" year="2025" status="Associate" committee="Fellowship Comm." img="https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah" />
+                                            <MemberCard name="Michael Chen" major="Business Admin" year="2026" status="Active" committee="Executive Board" img="https://api.dicebear.com/7.x/avataaars/svg?seed=Michael" />
+                                            <MemberCard name="Emma Wilson" major="Mechanical Eng" year="2024" status="Active" committee="Membership" img="https://api.dicebear.com/7.x/avataaars/svg?seed=Emma" />
+                                            <MemberCard name="David Garcia" major="Architecture" year="2025" status="Active" committee="Pledge Master" img="https://api.dicebear.com/7.x/avataaars/svg?seed=David" />
+                                            <MemberCard name="Olivia Davis" major="Journalism" year="2026" status="Active" committee="PR Chair" img="https://api.dicebear.com/7.x/avataaars/svg?seed=Olivia" />
+                                        </div>
+                                    ) : (
+                                        <div className="bg-white dark:bg-card-dark rounded-xl border border-border-dark shadow-sm overflow-hidden">
+                                            <table className="w-full text-left">
+                                                <thead className="bg-background-light dark:bg-background-dark/50 text-[10px] font-black uppercase tracking-widest text-text-secondary">
+                                                    <tr>
+                                                        <th className="px-6 py-4">Brother</th>
+                                                        <th className="px-6 py-4">Status</th>
+                                                        <th className="px-6 py-4">Major</th>
+                                                        <th className="px-6 py-4">Class</th>
+                                                        <th className="px-6 py-4"></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-border-dark">
+                                                    <MemberListRow name="Alex Thompson" status="Active" major="Computer Science" year="2024" img="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex" />
+                                                    <MemberListRow name="Sarah Jenkins" status="Associate" major="Psychology" year="2025" img="https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah" />
+                                                    <MemberListRow name="Michael Chen" status="Active" major="Business Admin" year="2026" img="https://api.dicebear.com/7.x/avataaars/svg?seed=Michael" />
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const FilterSection = ({ title, options, counts }) => (
+            <div className="space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">{title}</h3>
+                <div className="space-y-2">
+                    {options.map((opt, i) => (
+                        <label key={opt} className="flex items-center gap-3 cursor-pointer group">
+                            <input className="w-4 h-4 rounded border-border-dark bg-transparent text-primary focus:ring-primary focus:ring-offset-background-dark" type="checkbox"/>
+                            <span className="text-sm font-medium text-text-main group-hover:text-primary transition-colors">{opt}</span>
+                            {counts && <span className="ml-auto text-[10px] font-bold text-gray-400 bg-background-light dark:bg-background-dark px-2 py-0.5 rounded-full">{counts[i]}</span>}
+                        </label>
+                    ))}
+                </div>
+            </div>
+        );
+
+        const MemberCard = ({ name, major, year, status, committee, img }) => (
+            <div className="group bg-white dark:bg-card-dark rounded-xl border border-gray-200 dark:border-border-dark p-6 flex flex-col items-center shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-primary scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
+                <div className="relative mb-4">
+                    <div className="w-20 h-20 rounded-xl p-1 bg-white dark:bg-background-dark border border-gray-100 dark:border-border-dark shadow-sm">
+                        <div className="w-full h-full rounded-lg bg-cover bg-center" style={{backgroundImage: `url('${img}')`}}></div>
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 size-5 bg-primary text-white rounded-full flex items-center justify-center border-2 border-white dark:border-card-dark">
+                        <span className="material-symbols-outlined text-[12px] font-bold">verified</span>
+                    </div>
+                </div>
+                <h3 className="text-lg font-black group-hover:text-primary transition-colors">{name}</h3>
+                <div className="flex items-center gap-2 mb-6 mt-1">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>{status}</span>
+                </div>
+                <div className="w-full space-y-3 mb-6 bg-background-light dark:bg-background-dark/50 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide">
+                        <span className="material-symbols-outlined text-[16px] text-primary">school</span>
+                        <span>{major}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide">
+                        <span className="material-symbols-outlined text-[16px] text-primary">calendar_month</span>
+                        <span>Class of {year}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide">
+                        <span className="material-symbols-outlined text-[16px] text-primary">groups</span>
+                        <span className="truncate">{committee}</span>
+                    </div>
+                </div>
+                <button className="w-full mt-auto py-2.5 rounded-lg bg-white dark:bg-white/5 border border-border-dark text-text-main hover:bg-primary hover:text-white hover:border-primary font-black uppercase tracking-widest text-[10px] transition-all">Profile Details</button>
+            </div>
+        );
+
+        const MemberListRow = ({ name, status, major, year, img }) => (
+            <tr className="group hover:bg-white/5 transition-colors cursor-pointer">
+                <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                        <div className="size-8 rounded bg-cover bg-center" style={{backgroundImage: `url('${img}')`}}></div>
+                        <span className="text-sm font-bold group-hover:text-primary transition-colors">{name}</span>
+                    </div>
+                </td>
+                <td className="px-6 py-4">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>{status}</span>
+                </td>
+                <td className="px-6 py-4 text-sm font-medium text-text-secondary">{major}</td>
+                <td className="px-6 py-4 text-sm font-medium text-text-secondary">{year}</td>
+                <td className="px-6 py-4 text-right">
+                    <button className="text-gray-500 hover:text-primary"><span className="material-symbols-outlined">chevron_right</span></button>
+                </td>
+            </tr>
+        );
+
+        const OfficerDashboardPage = () => {
+            return (
+                <div className="flex h-screen w-full overflow-hidden">
+                    <Sidebar isOfficer={true} />
+                    <main className="flex-1 flex flex-col h-full overflow-y-auto bg-background-light dark:bg-background-dark">
+                        <MobileHeader />
+                        <div className="w-full max-w-[1280px] mx-auto px-6 md:px-10 py-10">
+                            <div className="flex flex-col gap-8">
+                                <div className="flex flex-wrap items-end justify-between gap-4">
+                                    <div className="flex flex-col gap-1">
+                                        <h1 className="text-slate-900 dark:text-white text-4xl font-black leading-tight tracking-tight">Executive Control</h1>
+                                        <p className="text-slate-500 dark:text-text-secondary text-sm font-bold uppercase tracking-widest">Chapter Governance Dashboard</p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <button className="h-10 w-10 rounded-lg bg-white dark:bg-card-dark border border-border-dark flex items-center justify-center text-slate-500 hover:text-primary transition-colors"><span className="material-symbols-outlined">notifications</span></button>
+                                        <div className="h-10 w-10 rounded-lg bg-slate-200 overflow-hidden border border-border-dark"><img src="https://api.dicebear.com/7.x/avataaars/svg?seed=President" className="h-full w-full object-cover"/></div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <OfficerStatCard title="Active Members" value="142" change="+5%" icon="group" />
+                                    <OfficerStatCard title="Action Required" value="18" alert="Critical" icon="priority_high" isAlert={true} />
+                                    <OfficerStatCard title="Chapter Treasury" value="$4,250" subtitle="Operating Funds" icon="account_balance_wallet" />
+                                </div>
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                    <div className="lg:col-span-2 flex flex-col gap-6">
+                                        <h3 className="text-sm font-black uppercase tracking-widest text-primary">Fast Actions</h3>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            <QuickActionCard title="New Event" icon="event" bg="bg-primary" />
+                                            <QuickActionCard title="Mass Comms" icon="mail" bg="bg-white dark:bg-card-dark" dark={true} />
+                                            <QuickActionCard title="Data Reports" icon="analytics" bg="bg-white dark:bg-card-dark" dark={true} />
+                                        </div>
+                                        <div className="bg-white dark:bg-card-dark rounded-xl p-8 border border-border-dark shadow-sm">
+                                            <div className="flex items-center justify-between mb-8">
+                                                <h3 className="text-lg font-black uppercase tracking-tight">Engagement Flow</h3>
+                                                <span className="text-xs font-bold text-text-secondary">Last 7 Weeks</span>
+                                            </div>
+                                            <div className="flex items-end justify-between h-48 gap-4">
+                                                {[40, 55, 35, 65, 80, 70, 90].map((h, i) => (
+                                                    <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
+                                                        <div className="w-full bg-slate-100 dark:bg-background-dark rounded-t-lg h-full flex items-end overflow-hidden">
+                                                            <div className="w-full bg-primary/40 group-hover:bg-primary transition-all duration-500 rounded-t-lg" style={{height: `${h}%`}}></div>
+                                                        </div>
+                                                        <span className="text-[10px] font-black uppercase tracking-tighter text-slate-500">Wk {i+1}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-6">
+                                        <div className="bg-white dark:bg-card-dark rounded-xl border border-border-dark shadow-sm flex flex-col overflow-hidden">
+                                            <div className="p-4 border-b border-border-dark flex justify-between items-center bg-gray-50/50 dark:bg-background-dark/30">
+                                                <h3 className="text-xs font-black uppercase tracking-widest">Command Tasks</h3>
+                                            </div>
+                                            <div className="flex flex-col divide-y divide-border-dark">
+                                                <DutyItem title="Audit Chapter Budget" deadline="Overdue" critical={true} />
+                                                <DutyItem title="Finalize Rush Events" deadline="Due Tomorrow" />
+                                                <DutyItem title="Meeting Minutes Upload" deadline="Due Friday" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const OfficerStatCard = ({ title, value, change, alert, icon, isAlert, subtitle }) => (
+            <div className={`bg-white dark:bg-card-dark rounded-xl p-6 border border-border-dark shadow-sm flex flex-col justify-between h-36 relative group hover:border-primary transition-all`}>
+                <div className="flex justify-between items-start">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{title}</p>
+                    <span className={`material-symbols-outlined text-xl ${isAlert ? 'text-primary' : 'text-slate-500'}`}>{icon}</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                    <h2 className="text-3xl font-black">{value}</h2>
+                    {change && <span className="text-emerald-500 text-[10px] font-black bg-emerald-500/10 px-1.5 py-0.5 rounded">{change}</span>}
+                    {alert && <span className="text-primary text-[10px] font-black uppercase animate-pulse">{alert}</span>}
+                    {subtitle && <span className="text-slate-500 text-xs font-bold uppercase tracking-wide">{subtitle}</span>}
+                </div>
+            </div>
+        );
+
+        const QuickActionCard = ({ title, icon, bg, dark }) => (
+            <button className={`group relative flex flex-col items-start justify-end p-5 h-32 rounded-xl ${bg} overflow-hidden shadow-sm hover:shadow-xl transition-all border border-border-dark`}>
+                <div className={`absolute -top-4 -right-4 p-3 opacity-10 group-hover:opacity-30 group-hover:scale-110 transition-all duration-500`}>
+                    <span className="material-symbols-outlined text-7xl">{icon}</span>
+                </div>
+                <div className={`${dark ? 'bg-background-light dark:bg-background-dark text-primary' : 'bg-white/20 text-white'} p-2 rounded-lg mb-auto backdrop-blur-sm`}>
+                    <span className="material-symbols-outlined text-xl">add</span>
+                </div>
+                <span className={`font-black uppercase tracking-widest text-[10px] z-10 ${dark ? 'text-slate-900 dark:text-white' : 'text-white'}`}>{title}</span>
+            </button>
+        );
+
+        const DutyItem = ({ title, deadline, critical }) => (
+            <label className="flex items-start gap-3 p-5 hover:bg-white/5 cursor-pointer group transition-colors">
+                <input className="mt-1 w-4 h-4 rounded border-border-dark bg-transparent text-primary focus:ring-primary focus:ring-offset-card-dark" type="checkbox"/>
+                <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-bold group-hover:text-primary transition-colors">{title}</span>
+                    <span className={`text-[9px] font-black uppercase tracking-widest ${critical ? 'text-primary' : 'text-slate-500'}`}>{deadline}</span>
+                </div>
+            </label>
+        );
+
+        const CalendarPage = ({ isOfficer }) => {
+            const [selectedDay, setSelectedDay] = useState(14);
+            const [drawerOpen, setDrawerOpen] = useState(true);
+
+            return (
+                <div className="flex h-screen w-full bg-background-light dark:bg-background-dark overflow-hidden">
+                    <Sidebar isOfficer={isOfficer} />
+                    <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+                        <MobileHeader />
+                        <header className="flex-shrink-0 px-8 py-8 flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div className="flex items-center gap-6">
+                                <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">OCTOBER 2023</h1>
+                                <div className="flex items-center bg-white dark:bg-card-dark rounded-lg border border-border-dark p-1 shadow-sm">
+                                    <button className="p-1.5 hover:bg-white/5 rounded-md text-slate-500"><span className="material-symbols-outlined text-[18px]">chevron_left</span></button>
+                                    <button className="px-4 py-1.5 text-xs font-black uppercase tracking-widest text-slate-700 dark:text-text-main">Today</button>
+                                    <button className="p-1.5 hover:bg-white/5 rounded-md text-slate-500"><span className="material-symbols-outlined text-[18px]">chevron_right</span></button>
+                                </div>
+                            </div>
+                            <button className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-white px-6 py-2.5 rounded-lg shadow-lg shadow-primary/20 transition-all font-black uppercase tracking-widest text-xs">
+                                <span className="material-symbols-outlined text-[18px]">add_calendar</span>
+                                <span>Create Event</span>
+                            </button>
+                        </header>
+                        <div className="flex-1 px-8 pb-8 flex flex-col overflow-hidden">
+                            <div className="grid grid-cols-7 border border-border-dark bg-gray-50 dark:bg-card-dark/50 rounded-t-xl">
+                                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                                    <div key={d} className="py-3 text-center text-[10px] font-black uppercase tracking-widest text-slate-500">{d}</div>
+                                ))}
+                            </div>
+                            <div className="flex-1 grid grid-cols-7 grid-rows-5 bg-border-dark gap-px border-x border-b border-border-dark rounded-b-xl overflow-hidden shadow-xl">
+                                {[...Array(35)].map((_, i) => {
+                                    const day = i - 6; 
+                                    const isCurrentMonth = day > 0 && day <= 31;
+                                    const hasEvent = [2, 4, 12, 14].includes(day);
+                                    return (
+                                        <div 
+                                            key={i} 
+                                            onClick={() => isCurrentMonth && setSelectedDay(day)}
+                                            className={`bg-white dark:bg-card-dark min-h-[100px] p-3 hover:bg-white/5 cursor-pointer relative transition-colors ${day === selectedDay ? 'ring-2 ring-primary ring-inset z-10 bg-primary/5' : ''} ${!isCurrentMonth ? 'opacity-20 pointer-events-none' : ''}`}
+                                        >
+                                            <span className={`text-xs font-black ${day === selectedDay ? 'text-primary' : 'text-slate-500 dark:text-slate-400'}`}>
+                                                {isCurrentMonth ? day : ''}
+                                            </span>
+                                            <div className="mt-2 space-y-1">
+                                                {day === 2 && <CalendarEvent label="7:00 PM Exec" color="#fbbf24" />}
+                                                {day === 4 && <CalendarEvent label="6:30 PM Pizza" color="#10b981" />}
+                                                {day === 12 && <CalendarEvent label="3:00 PM Tutoring" color="#ec5b13" />}
+                                                {day === 14 && <CalendarEvent label="9:00 AM Park" color="#ec5b13" active={true} />}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </main>
+
+                    {drawerOpen && (
+                        <aside className="w-[420px] flex-shrink-0 bg-white dark:bg-card-dark border-l border-border-dark flex flex-col shadow-2xl relative z-20 overflow-hidden">
+                            <button onClick={() => setDrawerOpen(false)} className="absolute top-4 right-4 z-10 p-2 bg-black/40 backdrop-blur-md rounded-lg text-white hover:bg-black transition-colors shadow-lg"><span className="material-symbols-outlined text-[18px]">close</span></button>
+                            <div className="h-56 w-full bg-cover bg-center relative" style={{backgroundImage: "url('https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&q=80&w=800')"}}>
+                                <div className="absolute inset-0 bg-gradient-to-t from-card-dark via-card-dark/20 to-transparent"></div>
+                                <div className="absolute bottom-6 left-8">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest bg-primary text-white mb-2 shadow-lg">Community Service</span>
+                                    <h2 className="text-2xl font-black text-white leading-tight uppercase tracking-tight">Community Park Cleanup</h2>
+                                </div>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-8">
+                                <div className="grid grid-cols-1 gap-6">
+                                    <CalendarMeta icon="schedule" title="Sat, Oct 14" sub="9:00 AM - 12:00 PM" />
+                                    <CalendarMeta icon="location_on" title="Centennial Park" sub="2500 West End Ave, Nashville" />
+                                </div>
+                                <div className="h-px bg-border-dark"></div>
+                                <div className="flex flex-col gap-3">
+                                    <h3 className="text-[10px] font-black uppercase tracking-widest text-primary">Briefing</h3>
+                                    <p className="text-sm text-slate-600 dark:text-text-secondary leading-relaxed font-medium">Join us for our monthly community service event! We'll be partnering with the Parks Department to clean up litter and plant new flowers.</p>
+                                </div>
+                                <div className="flex flex-col gap-4">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-[10px] font-black uppercase tracking-widest text-primary">Personnel</h3>
+                                        <span className="text-[10px] font-black px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 uppercase tracking-widest">15 / 20 Registered</span>
+                                    </div>
+                                    <div className="flex -space-x-2 overflow-hidden">
+                                        {[1,2,3,4,5,6].map(i => (
+                                            <img key={i} className="inline-block h-8 w-8 rounded-lg ring-2 ring-white dark:ring-card-dark" src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${i}`} />
+                                        ))}
+                                        <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-border-dark text-[10px] font-black">+9</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-8 border-t border-border-dark bg-white dark:bg-card-dark">
+                                <button className="w-full bg-primary hover:bg-primary-hover text-white font-black uppercase tracking-widest text-xs py-4 rounded-xl shadow-xl shadow-primary/25 transition-all">Register Attendance</button>
+                            </div>
+                        </aside>
+                    )}
+                </div>
+            );
+        };
+
+        const CalendarEvent = ({ label, color, active }) => (
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-tighter truncate border ${active ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-transparent text-slate-400 border-border-dark'}`}>
+                <div className="size-1 rounded-full shrink-0" style={{backgroundColor: active ? 'white' : color}}></div>
+                {label}
+            </div>
+        );
+
+        const CalendarMeta = ({ icon, title, sub }) => (
+            <div className="flex items-start gap-4">
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-background-light dark:bg-background-dark text-primary shrink-0 border border-border-dark">
+                    <span className="material-symbols-outlined text-[18px]">{icon}</span>
+                </div>
+                <div>
+                    <p className="text-sm font-black uppercase tracking-tight">{title}</p>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{sub}</p>
+                </div>
+            </div>
+        );
+
+        // --- App Shell ---
+
+        const App = () => {
+            const [isOfficer, setIsOfficer] = useState(false);
+
+            return (
+                <MemoryRouter initialEntries={['/']}>
+                    <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-white dark:bg-card-dark p-2 rounded-lg border border-border-dark shadow-2xl">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-2">Role Toggle (Dev)</span>
+                        <button 
+                            onClick={() => setIsOfficer(!isOfficer)}
+                            className={`px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-all ${isOfficer ? 'bg-primary text-white' : 'bg-slate-200 dark:bg-background-dark text-slate-500'}`}
+                        >
+                            {isOfficer ? 'Officer' : 'Member'}
+                        </button>
+                    </div>
+                    <Routes>
+                        <Route path="/" element={<DashboardPage isOfficer={isOfficer} />} />
+                        <Route path="/calendar" element={<CalendarPage isOfficer={isOfficer} />} />
+                        <Route path="/service-log" element={<ServiceLogPage isOfficer={isOfficer} />} />
+                        <Route path="/directory" element={<DirectoryPage isOfficer={isOfficer} />} />
+                        <Route path="/officer" element={isOfficer ? <OfficerDashboardPage /> : <DashboardPage isOfficer={isOfficer} />} />
+                    </Routes>
+                </MemoryRouter>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
