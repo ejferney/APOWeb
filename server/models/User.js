@@ -10,6 +10,10 @@ const UserSchema = new mongoose.Schema({
     gradYear: { type: Number },
     phone: { type: String },
     avatar: { type: String },
+    serviceHours: { type: Number, default: 0 },
+    fellowshipHours: { type: Number, default: 0 },
+    leadershipHours: { type: Number, default: 0 },
+    committeeHours: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now }
 });
 

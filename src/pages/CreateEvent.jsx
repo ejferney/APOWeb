@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     format,
     startOfMonth,
@@ -17,30 +17,58 @@ import {
 
 const CreateEvent = () => {
     const navigate = useNavigate();
-    const [currentDate, setCurrentDate] = useState(new Date());
+    const [searchParams] = useSearchParams();
+    const dateParam = searchParams.get('date'); // yyyy-MM-dd
+    const editId = searchParams.get('edit');
+
+    const [currentDate, setCurrentDate] = useState(dateParam ? parseISO(dateParam) : new Date());
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
 
     // New Event Form State
     const [newEvent, setNewEvent] = useState({
         title: '',
-        start: format(new Date(), "yyyy-MM-dd'T'09:00"),
-        end: format(new Date(), "yyyy-MM-dd'T'10:00"),
+        start: dateParam ? `${dateParam}T09:00` : format(new Date(), "yyyy-MM-dd'T'09:00"),
+        end: dateParam ? `${dateParam}T10:00` : format(new Date(), "yyyy-MM-dd'T'10:00"),
         location: '',
         type: 'meeting',
         description: '',
-        image: ''
+        image: '',
+        creditDistribution: [{ type: 'service', amount: 0 }]
     });
 
-    // Fetch Events for Conflict Checking
-    const fetchEvents = async () => {
+    // Fetch Data
+    const fetchData = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:5000/api/events', {
-                headers: { 'x-auth-token': token }
-            });
-            const data = await res.json();
-            setEvents(data);
+            const headers = { 'x-auth-token': token };
+
+            // 1. Fetch All Events (for conflicts)
+            const resEvents = await fetch('http://localhost:5000/api/events', { headers });
+            const dataEvents = await resEvents.json();
+            setEvents(dataEvents);
+
+            // 2. If Edit Mode, fetch specific event
+            if (editId) {
+                const targetEvent = dataEvents.find(e => e._id === editId);
+                if (targetEvent) {
+                    setNewEvent({
+                        title: targetEvent.title,
+                        start: targetEvent.start.substring(0, 16), // Format for datetime-local
+                        end: targetEvent.end.substring(0, 16),
+                        location: targetEvent.location,
+                        type: targetEvent.type,
+                        description: targetEvent.description || '',
+                        image: targetEvent.image || '',
+                        creditDistribution: targetEvent.creditDistribution?.length > 0
+                            ? targetEvent.creditDistribution
+                            : (targetEvent.creditType && targetEvent.creditType !== 'none'
+                                ? [{ type: targetEvent.creditType, amount: targetEvent.creditAmount }]
+                                : [{ type: 'service', amount: 0 }])
+                    });
+                    setCurrentDate(parseISO(targetEvent.start));
+                }
+            }
         } catch (err) {
             console.error(err);
         } finally {
@@ -49,15 +77,20 @@ const CreateEvent = () => {
     };
 
     useEffect(() => {
-        fetchEvents();
-    }, []);
+        fetchData();
+    }, [editId]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:5000/api/events', {
-                method: 'POST',
+            const url = editId
+                ? `http://localhost:5000/api/events/${editId}`
+                : 'http://localhost:5000/api/events';
+            const method = editId ? 'PUT' : 'POST';
+
+            const res = await fetch(url, {
+                method: method,
                 headers: {
                     'Content-Type': 'application/json',
                     'x-auth-token': token
@@ -67,7 +100,7 @@ const CreateEvent = () => {
             if (res.ok) {
                 navigate('/calendar');
             } else {
-                alert('Failed to create event');
+                alert(`Failed to ${editId ? 'update' : 'create'} event`);
             }
         } catch (err) {
             console.error(err);
@@ -103,8 +136,8 @@ const CreateEvent = () => {
                         <span className="material-symbols-outlined -ml-1">chevron_left</span>
                         <span className="text-sm font-bold">Back to Calendar</span>
                     </button>
-                    <h1 className="text-2xl font-black tracking-tight">Create Event</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Schedule a new event for the chapter.</p>
+                    <h1 className="text-2xl font-black tracking-tight">{editId ? 'Edit Event' : 'Create Event'}</h1>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{editId ? 'Update event details.' : 'Schedule a new event for the chapter.'}</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -133,6 +166,71 @@ const CreateEvent = () => {
                             <option value="fellowship">Fellowship</option>
                             <option value="other">Other</option>
                         </select>
+                    </div>
+                    <div className="space-y-3">
+                        <label className="block text-sm font-bold">Credits Awarded</label>
+                        {newEvent.creditDistribution.map((credit, index) => (
+                            <div key={index} className="flex gap-2 items-end">
+                                <div className="flex-1">
+                                    <label className="block text-xs font-semibold mb-1 text-slate-500">Type</label>
+                                    <select
+                                        className="w-full p-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
+                                        value={credit.type}
+                                        onChange={e => {
+                                            const newDist = [...newEvent.creditDistribution];
+                                            newDist[index].type = e.target.value;
+                                            setNewEvent({ ...newEvent, creditDistribution: newDist });
+                                        }}
+                                    >
+                                        <option value="service">Service</option>
+                                        <option value="fellowship">Fellowship</option>
+                                        <option value="leadership">Leadership</option>
+                                        <option value="committee">Committee</option>
+                                    </select>
+                                </div>
+                                <div className="w-24">
+                                    <label className="block text-xs font-semibold mb-1 text-slate-500">Amount</label>
+                                    <input
+                                        type="number"
+                                        step="0.5"
+                                        min="0"
+                                        className="w-full p-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
+                                        value={credit.amount}
+                                        onChange={e => {
+                                            const newDist = [...newEvent.creditDistribution];
+                                            newDist[index].amount = parseFloat(e.target.value);
+                                            setNewEvent({ ...newEvent, creditDistribution: newDist });
+                                        }}
+                                    />
+                                </div>
+                                {newEvent.creditDistribution.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const newDist = newEvent.creditDistribution.filter((_, i) => i !== index);
+                                            setNewEvent({ ...newEvent, creditDistribution: newDist });
+                                        }}
+                                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                                        title="Remove credit"
+                                    >
+                                        <span className="material-symbols-outlined">delete</span>
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setNewEvent({
+                                    ...newEvent,
+                                    creditDistribution: [...newEvent.creditDistribution, { type: 'service', amount: 0 }]
+                                });
+                            }}
+                            className="text-sm font-bold text-primary hover:underline flex items-center gap-1"
+                        >
+                            <span className="material-symbols-outlined text-sm">add</span>
+                            Add Credit Type
+                        </button>
                     </div>
                     <div>
                         <label className="block text-sm font-bold mb-1">Location</label>

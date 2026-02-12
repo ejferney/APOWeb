@@ -17,4 +17,17 @@ router.get('/', auth, async (req, res) => {
     }
 });
 
+// @route   GET /api/users/me
+// @desc    Get current user profile (fresh stats)
+// @access  Private
+router.get('/me', auth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.userId).select('-password');
+        res.json(user);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server Error');
+    }
+});
+
 module.exports = router;

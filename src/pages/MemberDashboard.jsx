@@ -1,9 +1,110 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { format } from 'date-fns';
 
 const MemberDashboard = () => {
     const { user } = useAuth();
+    const [history, setHistory] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchHistory = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch('http://localhost:5000/api/events?attended=true&status=completed', {
+                    headers: { 'x-auth-token': token }
+                });
+                if (res.ok) {
+                    setHistory(await res.json());
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchHistory();
+    }, []);
+
+    // Compute stats from local history to ensure consistency with table
+    const stats = React.useMemo(() => {
+        const acc = {
+            serviceHours: 0,
+            fellowshipHours: 0,
+            leadershipHours: 0,
+            committeeHours: 0
+        };
+
+        history.forEach(evt => {
+            const userAttendee = evt.attendees?.find(a => {
+                const aId = a.user?._id || a.user;
+                const userId = user?._id || user?.id;
+                return aId && userId && aId.toString() === userId.toString();
+            });
+
+            const override = userAttendee?.creditAmount;
+
+            if (override !== undefined) {
+                // If we have an override, we need to know WHICH category it applies to using the same logic as the backend/table
+                // Backend Logic: Apply difference to FIRST category.
+
+                let totalDefault = 0;
+                if (evt.creditDistribution) {
+                    evt.creditDistribution.forEach(c => totalDefault += c.amount);
+                } else {
+                    totalDefault = evt.creditAmount || 0;
+                }
+
+                const diff = override - totalDefault;
+
+                if (evt.creditDistribution && evt.creditDistribution.length > 0) {
+                    evt.creditDistribution.forEach((c, i) => {
+                        let amount = c.amount;
+                        if (i === 0) amount += diff; // Apply diff to first
+
+                        if (c.type === 'service') acc.serviceHours += amount;
+                        if (c.type === 'fellowship') acc.fellowshipHours += amount;
+                        if (c.type === 'leadership') acc.leadershipHours += amount;
+                        if (c.type === 'committee') acc.committeeHours += amount;
+                    });
+                } else if (evt.creditType && evt.creditType !== 'none') {
+                    // Single type
+                    // If override exists, it applies fully to this type
+                    const val = override; // It is the full value
+                    if (evt.creditType === 'service') acc.serviceHours += val;
+                    if (evt.creditType === 'fellowship') acc.fellowshipHours += val;
+                    if (evt.creditType === 'leadership') acc.leadershipHours += val;
+                    if (evt.creditType === 'committee') acc.committeeHours += val;
+                }
+            } else {
+                // No override, add defaults
+                if (evt.creditDistribution && evt.creditDistribution.length > 0) {
+                    evt.creditDistribution.forEach(c => {
+                        if (c.type === 'service') acc.serviceHours += c.amount;
+                        if (c.type === 'fellowship') acc.fellowshipHours += c.amount;
+                        if (c.type === 'leadership') acc.leadershipHours += c.amount;
+                        if (c.type === 'committee') acc.committeeHours += c.amount;
+                    });
+                } else if (evt.creditType && evt.creditType !== 'none') {
+                    const val = evt.creditAmount || 0;
+                    if (evt.creditType === 'service') acc.serviceHours += val;
+                    if (evt.creditType === 'fellowship') acc.fellowshipHours += val;
+                    if (evt.creditType === 'leadership') acc.leadershipHours += val;
+                    if (evt.creditType === 'committee') acc.committeeHours += val;
+                }
+            }
+        });
+        return acc;
+    }, [history, user]);
+
+    const GOALS = {
+        service: 25,
+        fellowship: 10,
+        leadership: 3
+    };
+
+    const getProgress = (current, goal) => Math.min(100, Math.round((current / goal) * 100));
 
     return (
         <main className="flex-1 flex flex-col h-full overflow-y-auto overflow-x-hidden relative">
@@ -12,7 +113,7 @@ const MemberDashboard = () => {
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                     <div className="flex flex-col gap-1">
                         <h1 className="text-3xl font-black tracking-tight">Welcome back, Brother {user?.firstName}</h1>
-                        <p className="text-slate-500 dark:text-slate-400 text-base font-normal">Today is October 24, 2023. You have 2 upcoming tasks.</p>
+                        <p className="text-slate-500 dark:text-slate-400 text-base font-normal">Today is {format(new Date(), 'MMMM d, yyyy')}. Track your progress below.</p>
                     </div>
                     <div className="flex gap-3">
                         <button className="flex items-center justify-center gap-2 h-10 px-5 rounded-lg bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
@@ -31,52 +132,68 @@ const MemberDashboard = () => {
                         <div className="flex justify-between items-start mb-4">
                             <div>
                                 <p className="text-slate-500 dark:text-slate-400 text-sm font-medium uppercase tracking-wider">Service Hours</p>
-                                <h3 className="text-2xl font-bold mt-1">20 / 25</h3>
+                                <h3 className="text-2xl font-bold mt-1">{stats.serviceHours} / {GOALS.service}</h3>
                             </div>
                             <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-primary"><span className="material-symbols-outlined">handshake</span></div>
                         </div>
                         <div className="flex items-center gap-6">
-                            <div className="relative size-24 shrink-0 rounded-full bg-[conic-gradient(var(--tw-gradient-stops))] from-primary via-primary via-[80%] to-slate-200 dark:to-slate-700 to-[80%] flex items-center justify-center">
+                            <div className="relative size-24 shrink-0 rounded-full bg-[conic-gradient(var(--tw-gradient-stops))] from-primary via-primary via-[80%] to-slate-200 dark:to-slate-700 to-[80%] flex items-center justify-center" style={{ background: `conic-gradient(#3b82f6 ${getProgress(stats.serviceHours, GOALS.service)}%, #e2e8f0 0)` }}>
                                 <div className="bg-white dark:bg-card-dark rounded-full size-20 flex items-center justify-center">
-                                    <span className="text-lg font-bold text-primary">80%</span>
+                                    <span className="text-lg font-bold text-primary">{getProgress(stats.serviceHours, GOALS.service)}%</span>
                                 </div>
                             </div>
                             <div className="flex flex-col gap-1">
-                                <p className="text-sm font-medium">Keep it up!</p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">You only need 5 more hours to reach your semester goal.</p>
+                                <p className="text-sm font-medium">{stats.serviceHours >= GOALS.service ? 'Goal Met!' : 'Keep it up!'}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                    {Math.max(0, GOALS.service - stats.serviceHours)} more hours needed.
+                                </p>
                             </div>
                         </div>
                     </div>
                     {/* Fellowship Credits */}
-                    <div className="flex flex-col justify-between bg-white dark:bg-card-dark rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm group hover:border-accent/50 transition-colors">
-                        <div>
-                            <div className="flex justify-between items-start">
+                    <div className="md:col-span-1 bg-white dark:bg-card-dark rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group hover:border-yellow-500/50 transition-colors">
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
                                 <p className="text-slate-500 dark:text-slate-400 text-sm font-medium uppercase tracking-wider">Fellowship</p>
-                                <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-yellow-600 dark:text-yellow-400"><span className="material-symbols-outlined">diversity_3</span></div>
+                                <h3 className="text-2xl font-bold mt-1">{stats.fellowshipHours} / {GOALS.fellowship}</h3>
                             </div>
-                            <div className="mt-4 flex items-end gap-2">
-                                <h3 className="text-3xl font-bold">5</h3>
-                                <span className="text-sm text-slate-500 dark:text-slate-400 mb-1.5">/ 10 credits</span>
-                            </div>
+                            <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-yellow-600 dark:text-yellow-400"><span className="material-symbols-outlined">diversity_3</span></div>
                         </div>
-                        <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2 mt-4">
-                            <div className="bg-yellow-500 h-2 rounded-full" style={{ width: '50%' }}></div>
+                        <div className="flex items-center gap-6">
+                            <div className="relative size-24 shrink-0 rounded-full bg-[conic-gradient(var(--tw-gradient-stops))] from-yellow-500 via-yellow-500 via-[80%] to-slate-200 dark:to-slate-700 to-[80%] flex items-center justify-center" style={{ background: `conic-gradient(#eab308 ${getProgress(stats.fellowshipHours, GOALS.fellowship)}%, #e2e8f0 0)` }}>
+                                <div className="bg-white dark:bg-card-dark rounded-full size-20 flex items-center justify-center">
+                                    <span className="text-lg font-bold text-yellow-600 dark:text-yellow-400">{getProgress(stats.fellowshipHours, GOALS.fellowship)}%</span>
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <p className="text-sm font-medium">{stats.fellowshipHours >= GOALS.fellowship ? 'Goal Met!' : 'Keep it up!'}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                    {Math.max(0, (GOALS.fellowship - stats.fellowshipHours)).toFixed(1)} more credits.
+                                </p>
+                            </div>
                         </div>
                     </div>
                     {/* Leadership Credits */}
-                    <div className="flex flex-col justify-between bg-white dark:bg-card-dark rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm group hover:border-emerald-500/50 transition-colors">
-                        <div>
-                            <div className="flex justify-between items-start">
+                    <div className="md:col-span-1 bg-white dark:bg-card-dark rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group hover:border-emerald-500/50 transition-colors">
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
                                 <p className="text-slate-500 dark:text-slate-400 text-sm font-medium uppercase tracking-wider">Leadership</p>
-                                <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg text-emerald-600 dark:text-emerald-400"><span className="material-symbols-outlined">stars</span></div>
+                                <h3 className="text-2xl font-bold mt-1">{stats.leadershipHours} / {GOALS.leadership}</h3>
                             </div>
-                            <div className="mt-4 flex items-end gap-2">
-                                <h3 className="text-3xl font-bold">2</h3>
-                                <span className="text-sm text-slate-500 dark:text-slate-400 mb-1.5">/ 3 credits</span>
-                            </div>
+                            <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg text-emerald-600 dark:text-emerald-400"><span className="material-symbols-outlined">stars</span></div>
                         </div>
-                        <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2 mt-4">
-                            <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '66%' }}></div>
+                        <div className="flex items-center gap-6">
+                            <div className="relative size-24 shrink-0 rounded-full bg-[conic-gradient(var(--tw-gradient-stops))] from-emerald-500 via-emerald-500 via-[80%] to-slate-200 dark:to-slate-700 to-[80%] flex items-center justify-center" style={{ background: `conic-gradient(#10b981 ${getProgress(stats.leadershipHours, GOALS.leadership)}%, #e2e8f0 0)` }}>
+                                <div className="bg-white dark:bg-card-dark rounded-full size-20 flex items-center justify-center">
+                                    <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{getProgress(stats.leadershipHours, GOALS.leadership)}%</span>
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <p className="text-sm font-medium">{stats.leadershipHours >= GOALS.leadership ? 'Goal Met!' : 'Keep it up!'}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                    {Math.max(0, (GOALS.leadership - stats.leadershipHours)).toFixed(1)} more credits.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
