@@ -65,4 +65,18 @@ router.post('/login', async (req, res) => {
     }
 });
 
+// @route   GET /api/auth/me
+// @desc    Get current user
+// @access  Private
+const auth = require('../middleware/auth');
+router.get('/me', auth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.userId).select('-password');
+        res.json(user);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server Error');
+    }
+});
+
 module.exports = router;

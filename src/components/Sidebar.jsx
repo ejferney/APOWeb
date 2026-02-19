@@ -50,6 +50,10 @@ const Sidebar = ({ isOfficer }) => {
                                     <span className="material-symbols-outlined text-xl">admin_panel_settings</span>
                                     <p className="text-sm font-medium">Officer Portal</p>
                                 </Link>
+                                <Link to="/kanban" className={`px-3 py-2 rounded-lg flex items-center gap-3 cursor-pointer transition-colors ${isActive('/kanban') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
+                                    <span className="material-symbols-outlined text-xl">view_kanban</span>
+                                    <p className="text-sm font-medium">Kanban Board</p>
+                                </Link>
                                 <Link to="/heatmap" className={`px-3 py-2 rounded-lg flex items-center gap-3 cursor-pointer transition-colors ${isActive('/heatmap') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
                                     <span className="material-symbols-outlined text-xl">grid_view</span>
                                     <p className="text-sm font-medium">Availability Heatmap</p>

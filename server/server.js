@@ -30,6 +30,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/availability', availabilityRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/requirements', require('./routes/requirements'));
+app.use('/api/tasks', require('./routes/tasks'));
+app.use('/api/categories', require('./routes/categories'));
 
 // Start Server
 app.listen(PORT, () => {
