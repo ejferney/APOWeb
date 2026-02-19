@@ -6,10 +6,12 @@ const UserSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     role: { type: String, enum: ['member', 'officer', 'admin'], default: 'member' },
+    membershipType: { type: String, enum: ['active', 'associate', 'pledge', 'prospect', 'inactive', 'alumni'], default: 'pledge' },
     pledgeClass: { type: String },
     gradYear: { type: Number },
     phone: { type: String },
     avatar: { type: String },
+    position: { type: String }, // e.g., 'President', 'VP Service'
     serviceHours: { type: Number, default: 0 },
     fellowshipHours: { type: Number, default: 0 },
     leadershipHours: { type: Number, default: 0 },

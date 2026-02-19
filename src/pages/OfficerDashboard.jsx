@@ -1,168 +1,601 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import RequirementsEditor from '../components/RequirementsEditor';
 
 const OfficerDashboard = () => {
+    const [showRequirements, setShowRequirements] = useState(false);
+    const [memberStats, setMemberStats] = useState({
+        active: 0,
+        associate: 0,
+        pledge: 0,
+        total: 0
+    });
+    const [myTasks, setMyTasks] = useState([]);
+
+    // State for Officer Transition
+    const [showTransitionModal, setShowTransitionModal] = useState(false);
+    // transitionData will now be a map: { 'President': 'newUserId', 'Treasurer': 'anotherUserId' }
+    const [transitionData, setTransitionData] = useState({});
+    const [allUsers, setAllUsers] = useState([]);
+    const [transitionMessage, setTransitionMessage] = useState('');
+
+    const officerPositions = [
+        'President', 'VP Service', 'VP Membership', 'VP CoLD',
+        'Treasurer', 'Marketing Head', 'Secretary',
+        'Sergeant at Arms', 'Pledge Educator'
+    ];
+
+    const handleTransitionClick = async () => {
+        setShowTransitionModal(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('http://localhost:5000/api/users', {
+                headers: { 'x-auth-token': token }
+            });
+            if (res.ok) {
+                const users = await res.json();
+                setAllUsers(users);
+            }
+        } catch (err) {
+            console.error("Failed to fetch users", err);
+        }
+    };
+
+    const submitTransition = async (e) => {
+        e.preventDefault();
+
+        // Convert map to array for backend
+        const transitions = Object.entries(transitionData)
+            .filter(([_, newUserId]) => newUserId !== '') // Filter out empty selections
+            .map(([position, newUserId]) => ({ position, newUserId }));
+
+        if (transitions.length === 0) {
+            setTransitionMessage('No changes selected to submit.');
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('http://localhost:5000/api/users/transition', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                body: JSON.stringify({ transitions })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setTransitionMessage(`Successfully updated ${data.results.length} positions!`);
+                setTimeout(() => {
+                    setShowTransitionModal(false);
+                    setTransitionMessage('');
+                    setTransitionData({});
+                    window.location.reload();
+                }, 1500);
+            } else {
+                setTransitionMessage('Failed to transfer positions.');
+            }
+        } catch (err) {
+            console.error(err);
+            setTransitionMessage('Error occurred.');
+        }
+    };
+
+    const getCurrentOfficer = (position) => {
+        const officer = allUsers.find(u => u.position === position);
+        return officer ? `${officer.firstName} ${officer.lastName}` : 'Vacant';
+    };
+
+    const fetchMyTasks = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('http://localhost:5000/api/tasks/my-tasks', {
+                headers: { 'x-auth-token': token }
+            });
+            if (res.ok) {
+                setMyTasks(await res.json());
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleTaskStatusUpdate = async (taskId, newStatus) => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`http://localhost:5000/api/tasks/${taskId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+            if (res.ok) {
+                fetchMyTasks(); // Refresh tasks
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    React.useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch('http://localhost:5000/api/users', {
+                    headers: { 'x-auth-token': token }
+                });
+
+                if (res.ok) {
+                    const users = await res.json();
+                    if (Array.isArray(users)) {
+                        const active = users.filter(u => u.membershipType === 'active').length;
+                        const associate = users.filter(u => u.membershipType === 'associate').length;
+                        const pledge = users.filter(u => !u.membershipType || u.membershipType === 'pledge').length; // Default to pledge
+
+                        // Calculate total service hours
+                        const totalServiceHours = users.reduce((acc, user) => acc + (user.serviceHours || 0), 0);
+
+                        setMemberStats({
+                            active,
+                            associate,
+                            pledge,
+                            total: active + associate + pledge,
+                            totalServiceHours
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching users:", err);
+            }
+        };
+
+        fetchUsers();
+        fetchMyTasks();
+    }, []);
+
+    // State for Manage Users
+    const [showManageUsersModal, setShowManageUsersModal] = useState(false);
+    const [manageTab, setManageTab] = useState('pledge'); // 'pledge' or 'active'
+    const [selectedUsers, setSelectedUsers] = useState([]);
+
+    const handleManageUsersClick = async () => {
+        setShowManageUsersModal(true);
+        // Ensure we have users
+        if (allUsers.length === 0) {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch('http://localhost:5000/api/users', {
+                    headers: { 'x-auth-token': token }
+                });
+                if (res.ok) setAllUsers(await res.json());
+            } catch (err) {
+                console.error("Failed to fetch users", err);
+            }
+        }
+    };
+
+    const handleBulkUpdate = async (newStatus) => {
+        if (!confirm(`Are you sure you want to move ${selectedUsers.length} users to ${newStatus}?`)) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('http://localhost:5000/api/users/status-bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                body: JSON.stringify({ userIds: selectedUsers, membershipType: newStatus })
+            });
+
+            if (res.ok) {
+                alert('Users updated successfully!');
+                setSelectedUsers([]);
+                // Refresh users
+                const userRes = await fetch('http://localhost:5000/api/users', { headers: { 'x-auth-token': token } });
+                if (userRes.ok) setAllUsers(await userRes.json());
+                window.location.reload();
+            } else {
+                alert('Failed to update users.');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Error occurred.');
+        }
+    };
+
     return (
-        <main className="flex-1 flex flex-col h-full overflow-y-auto">
-            <div className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="flex flex-col gap-8">
-                    {/* Welcome */}
-                    <div className="flex flex-wrap items-end justify-between gap-4">
-                        <div className="flex flex-col gap-1">
-                            <h1 className="text-3xl font-bold leading-tight tracking-tight">Welcome back, President</h1>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-normal">Here is what is happening with your chapter today.</p>
+        <div className="p-6 bg-slate-50 dark:bg-slate-950 min-h-screen">
+            <div className="max-w-7xl mx-auto">
+                <div className="flex justify-between items-center mb-8">
+                    <div>
+                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Officer Dashboard</h1>
+                        <p className="text-slate-600 dark:text-slate-400 mt-1">Manage chapter operations and requirements</p>
+                    </div>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => setShowRequirements(!showRequirements)}
+                            className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${showRequirements ? 'bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+                        >
+                            <span className="material-symbols-outlined text-[20px]">list_alt</span>
+                            {showRequirements ? 'Hide Requirements' : 'Manage Requirements'}
+                        </button>
+                        <button
+                            onClick={handleTransitionClick}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                        >
+                            <span className="material-symbols-outlined text-[20px]">swap_horiz</span>
+                            Transition Officers
+                        </button>
+                    </div>
+                </div>
+
+                {showRequirements && <RequirementsEditor />}
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+                        <div className="flex items-center justify-between mb-2">
+                            <div>
+                                <p className="text-sm font-medium text-slate-500">Total Members</p>
+                                <h3 className="text-2xl font-bold mt-1">
+                                    {memberStats.total}
+                                </h3>
+                            </div>
+                            <span className="p-3 bg-blue-50 text-blue-600 rounded-full">
+                                <span className="material-symbols-outlined">group</span>
+                            </span>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <button className="h-10 w-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-primary transition-colors">
-                                <span className="material-symbols-outlined">notifications</span>
-                            </button>
-                            <div className="h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                                <img alt="User Profile" className="h-full w-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDT1JWePlTORSW4kwPBAs9e8ouW6thvLWoO6UVICYxus4QaM0zUPLMAYjHWKjQO5UUvfQXmwV19BualQBodoh_GdMkVI4zEOVkvjddyPZ_xbd4FV92TQ6Evwpd7ibqHdNmIw6FGkXC5E-DbSjf7ZUPxB31-m5-Ox6OysbYSbI5wbgOsxTemXDUhj8YA90QWb-vsnLjyNT0Q2UlEp34wROcn6MsNIDyOLhfayc_qM_8ASEfQo0vb3_91lA32a_ngVl5qGb6GliPyczWK" />
+                        <div className="flex gap-2 text-xs text-slate-500 mt-3 border-t border-slate-100 dark:border-slate-800 pt-3">
+                            <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                <span>{memberStats.active} Active</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                <span>{memberStats.associate} Assoc</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                                <span>{memberStats.pledge} Pledge</span>
                             </div>
                         </div>
                     </div>
 
-                    {/* Metrics */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between h-32">
-                            <div className="flex justify-between items-start">
-                                <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Active Members</p>
-                                <span className="material-symbols-outlined text-slate-400 text-xl">group</span>
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-slate-500">Service Hours</p>
+                                <h3 className="text-2xl font-bold mt-1">
+                                    {memberStats.totalServiceHours !== undefined ? memberStats.totalServiceHours.toLocaleString() : '0'}
+                                </h3>
                             </div>
-                            <div className="flex items-baseline gap-2">
-                                <h2 className="text-3xl font-bold">142</h2>
-                                <span className="text-green-600 dark:text-green-500 text-sm font-semibold bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded">+5%</span>
-                            </div>
-                        </div>
-                        <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between h-32 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-1 h-full bg-orange-500"></div>
-                            <div className="flex justify-between items-start">
-                                <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Pending Approvals</p>
-                                <span className="material-symbols-outlined text-orange-500 text-xl">priority_high</span>
-                            </div>
-                            <div className="flex items-baseline gap-2">
-                                <h2 className="text-3xl font-bold">18</h2>
-                                <span className="text-orange-600 dark:text-orange-400 text-sm font-medium">Needs Attention</span>
-                            </div>
-                        </div>
-                        <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between h-32">
-                            <div className="flex justify-between items-start">
-                                <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Budget Status</p>
-                                <span className="material-symbols-outlined text-slate-400 text-xl">account_balance_wallet</span>
-                            </div>
-                            <div className="flex items-baseline gap-2">
-                                <h2 className="text-3xl font-bold">$4,250</h2>
-                                <span className="text-slate-400 text-sm font-normal">Remaining</span>
-                            </div>
+                            <span className="p-3 bg-green-50 text-green-600 rounded-full">
+                                <span className="material-symbols-outlined">volunteer_activism</span>
+                            </span>
                         </div>
                     </div>
 
-                    {/* Main Grid */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div className="lg:col-span-2 flex flex-col gap-6">
-                            {/* Quick Actions */}
-                            <div className="flex flex-col gap-4">
-                                <h3 className="text-lg font-bold">Quick Actions</h3>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    <button className="group relative flex flex-col items-start justify-end p-5 h-32 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 text-white overflow-hidden shadow-md hover:shadow-lg transition-all">
-                                        <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:opacity-30 transition-opacity">
-                                            <span className="material-symbols-outlined text-6xl">event</span>
-                                        </div>
-                                        <div className="bg-white/20 p-2 rounded-lg mb-auto backdrop-blur-sm">
-                                            <span className="material-symbols-outlined text-xl">add</span>
-                                        </div>
-                                        <span className="font-bold z-10">Create Event</span>
-                                    </button>
-                                    <button className="group relative flex flex-col items-start justify-end p-5 h-32 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white overflow-hidden shadow-sm hover:shadow-md transition-all">
-                                        <div className="absolute top-0 right-0 p-3 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 transition-opacity">
-                                            <span className="material-symbols-outlined text-6xl">mail</span>
-                                        </div>
-                                        <div className="bg-slate-100 dark:bg-slate-800 p-2 rounded-lg mb-auto text-primary">
-                                            <span className="material-symbols-outlined text-xl">send</span>
-                                        </div>
-                                        <span className="font-bold z-10">Email Chapter</span>
-                                    </button>
-                                    <button className="group relative flex flex-col items-start justify-end p-5 h-32 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white overflow-hidden shadow-sm hover:shadow-md transition-all">
-                                        <div className="absolute top-0 right-0 p-3 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 transition-opacity">
-                                            <span className="material-symbols-outlined text-6xl">file_download</span>
-                                        </div>
-                                        <div className="bg-slate-100 dark:bg-slate-800 p-2 rounded-lg mb-auto text-primary">
-                                            <span className="material-symbols-outlined text-xl">download</span>
-                                        </div>
-                                        <span className="font-bold z-10">Export Reports</span>
-                                    </button>
-                                </div>
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-slate-500">Pending Issues</p>
+                                <h3 className="text-2xl font-bold mt-1">5</h3>
                             </div>
-                            {/* Chart Placeholder */}
-                            <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-6">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-lg font-bold">Chapter Engagement</h3>
-                                    <select className="bg-transparent text-sm text-slate-500 border-none focus:ring-0 cursor-pointer">
-                                        <option>This Semester</option>
-                                        <option>Last Semester</option>
-                                    </select>
-                                </div>
-                                <div className="flex items-end justify-between h-48 gap-2 sm:gap-4 w-full">
-                                    {[40, 55, 35, 65, 80, 70, 90].map((h, i) => (
-                                        <div key={i} className="flex flex-col items-center gap-2 flex-1 group">
-                                            <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-t-sm h-full flex items-end relative overflow-hidden">
-                                                <div className="w-full bg-primary/80 group-hover:bg-primary transition-all duration-500 rounded-t-sm" style={{ height: `${h}%` }}></div>
+                            <span className="p-3 bg-orange-50 text-orange-600 rounded-full">
+                                <span className="material-symbols-outlined">warning</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-slate-500">Upcoming Events</p>
+                                <h3 className="text-2xl font-bold mt-1">8</h3>
+                            </div>
+                            <span className="p-3 bg-purple-50 text-purple-600 rounded-full">
+                                <span className="material-symbols-outlined">event</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Main Content Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Left Column - Tasks */}
+                    <div className="lg:col-span-2 space-y-6">
+                        {/* My Tasks Widget */}
+                        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                            <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                                <h2 className="text-lg font-bold flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-primary">assignment_ind</span>
+                                    My Tasks
+                                </h2>
+                                <Link to="/kanban" className="text-sm text-primary hover:underline">View Board</Link>
+                            </div>
+                            <div className="p-6">
+                                {myTasks.length === 0 ? (
+                                    <div className="text-center py-8 text-slate-500">
+                                        <p>No active tasks assigned to you.</p>
+                                        <Link to="/kanban" className="mt-2 inline-block text-sm font-medium text-primary">Find tasks on board</Link>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {myTasks.slice(0, 5).map(task => (
+                                            <div key={task._id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-2 h-2 rounded-full ${task.priority === 'Critical' ? 'bg-red-500' :
+                                                        task.priority === 'High' ? 'bg-orange-500' :
+                                                            'bg-blue-500'
+                                                        }`} />
+                                                    <div>
+                                                        <h4 className="font-medium text-sm text-slate-900 dark:text-slate-100">{task.title}</h4>
+                                                        <p className="text-xs text-slate-500">{task.category?.prefix}{task.taskId?.slice(-3)} • Due {new Date(task.dueDate).toLocaleDateString()}</p>
+                                                    </div>
+                                                </div>
+                                                <select
+                                                    value={task.status}
+                                                    onChange={(e) => updateTaskStatus(task._id, e.target.value)}
+                                                    className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1"
+                                                >
+                                                    <option>Todo</option>
+                                                    <option>In Progress</option>
+                                                    <option>Completed</option>
+                                                </select>
                                             </div>
-                                            <span className="text-xs text-slate-400">Wk {i + 1}</span>
-                                        </div>
-                                    ))}
-                                </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        {/* Right Column */}
-                        <div className="flex flex-col gap-6">
-                            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden">
-                                <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/30">
-                                    <h3 className="text-base font-bold">Officer Duties</h3>
-                                    <button className="text-xs text-primary font-medium hover:underline">View All</button>
-                                </div>
-                                <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
-                                    {[
-                                        { text: "Approve Budget Request", sub: "Fall Retreat Committee • Due Today", checked: false },
-                                        { text: "Finalize Rush Schedule", sub: "Membership VP • Due Tomorrow", checked: false },
-                                        { text: "Upload Meeting Minutes", sub: "Secretary • Due Friday", checked: false },
-                                        { text: "Send Weekly Newsletter", sub: "Communications • Completed", checked: true, strike: true },
-                                    ].map((item, i) => (
-                                        <label key={i} className="flex items-start gap-3 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer group">
-                                            <input type="checkbox" defaultChecked={item.checked} className="mt-1 w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary" />
-                                            <div className="flex flex-col gap-0.5">
-                                                <span className={`text-sm font-medium group-hover:text-primary transition-colors ${item.strike ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white'}`}>{item.text}</span>
-                                                <span className="text-xs text-slate-500">{item.sub}</span>
-                                            </div>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col p-4 gap-4">
-                                <h3 className="text-base font-bold">Recent Activity</h3>
-                                <div className="flex flex-col gap-4">
-                                    <div className="flex gap-3">
-                                        <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 flex items-center justify-center shrink-0"><span className="material-symbols-outlined text-sm">schedule</span></div>
-                                        <div className="flex flex-col gap-1">
-                                            <p className="text-sm text-slate-700 dark:text-slate-300 leading-tight"><span className="font-semibold text-slate-900 dark:text-white">John Doe</span> submitted 3 service hours.</p>
-                                            <span className="text-xs text-slate-400">2 minutes ago</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0"><span className="material-symbols-outlined text-sm">person_add</span></div>
-                                        <div className="flex flex-col gap-1">
-                                            <p className="text-sm text-slate-700 dark:text-slate-300 leading-tight"><span className="font-semibold text-slate-900 dark:text-white">Sarah Smith</span> applied for membership.</p>
-                                            <span className="text-xs text-slate-400">1 hour ago</span>
-                                        </div>
-                                    </div>
-                                </div>
+                        {/* Recent Service Logs */}
+                        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+                            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-green-500">history</span>
+                                Recent Activity
+                            </h2>
+                            {/* Placeholder for logs */}
+                            <div className="text-slate-500 text-sm">No recent activity logs found.</div>
+                        </div>
+                    </div>
+
+                    {/* Right Column - Quick Actions / Requirements */}
+                    <div className="space-y-6">
+                        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+                            <h2 className="text-lg font-bold mb-4">Quick Actions</h2>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Link to="/create-event" className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                                    <span className="material-symbols-outlined block mb-1 text-blue-500">event</span>
+                                    <span className="text-xs font-medium">Create Event</span>
+                                </Link>
+                                <button className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                                    <span className="material-symbols-outlined block mb-1 text-green-500">campaign</span>
+                                    <span className="text-xs font-medium">Announcement</span>
+                                </button>
+                                <button
+                                    onClick={handleManageUsersClick}
+                                    className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    <span className="material-symbols-outlined block mb-1 text-purple-500">group_add</span>
+                                    <span className="text-xs font-medium">Manage Users</span>
+                                </button>
+                                <button className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                                    <span className="material-symbols-outlined block mb-1 text-orange-500">download</span>
+                                    <span className="text-xs font-medium">Reports</span>
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                {/* Transition Modal */}
+                {showTransitionModal && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white dark:bg-slate-900 rounded-xl max-w-2xl w-full p-6 shadow-xl relative max-h-[90vh] overflow-y-auto">
+                            <button
+                                onClick={() => setShowTransitionModal(false)}
+                                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+
+                            <h2 className="text-xl font-bold mb-1 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-purple-600">swap_horiz</span>
+                                Transition Officer Roles
+                            </h2>
+                            <p className="text-sm text-slate-500 mb-6">Reassign executive positions for the next term.</p>
+
+                            {transitionMessage && (
+                                <div className={`p-3 rounded-lg mb-4 text-sm font-medium ${transitionMessage.includes('Success') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                    {transitionMessage}
+                                </div>
+                            )}
+
+                            <form onSubmit={submitTransition} className="flex flex-col gap-4">
+                                <div className="space-y-4">
+                                    {officerPositions.map(position => (
+                                        <div key={position} className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                                            <div className="flex-1">
+                                                <h3 className="font-semibold text-sm">{position}</h3>
+                                                <p className="text-xs text-slate-500">Current: <span className="text-slate-700 dark:text-slate-300 font-medium">{getCurrentOfficer(position)}</span></p>
+                                            </div>
+                                            <div className="flex-1">
+                                                <select
+                                                    className="w-full text-sm rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                                                    value={transitionData[position] || ''}
+                                                    onChange={e => setTransitionData({ ...transitionData, [position]: e.target.value })}
+                                                >
+                                                    <option value="">No Change</option>
+                                                    {allUsers.map(u => (
+                                                        <option key={u._id} value={u._id}>
+                                                            {u.firstName} {u.lastName}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+                                    <p className="text-xs text-slate-500">Selecting a new officer will remove the position from the current holder.</p>
+                                    <div className="flex gap-3">
+                                        <button type="button" onClick={() => setShowTransitionModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
+                                        <button type="submit" className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">Save All Changes</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+                {/* Manage Users Modal */}
+                {showManageUsersModal && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white dark:bg-slate-900 rounded-xl max-w-4xl w-full p-6 shadow-xl relative max-h-[90vh] overflow-y-auto">
+                            <button
+                                onClick={() => setShowManageUsersModal(false)}
+                                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+
+                            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-purple-600">group_add</span>
+                                Manage Membership Status
+                            </h2>
+
+                            {/* Tabs */}
+                            <div className="flex gap-4 border-b border-slate-200 dark:border-slate-800 mb-4">
+                                <button
+                                    onClick={() => { setManageTab('pledge'); setSelectedUsers([]); }}
+                                    className={`pb-2 px-4 text-sm font-medium transition-colors ${manageTab === 'pledge' ? 'border-b-2 border-purple-600 text-purple-600' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    Pledges
+                                </button>
+                                <button
+                                    onClick={() => { setManageTab('active'); setSelectedUsers([]); }}
+                                    className={`pb-2 px-4 text-sm font-medium transition-colors ${manageTab === 'active' ? 'border-b-2 border-purple-600 text-purple-600' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    Actives / Associates
+                                </button>
+                            </div>
+
+                            {/* Toolbar */}
+                            <div className="flex justify-between items-center mb-4 bg-slate-50 dark:bg-slate-800 p-3 rounded-lg">
+                                <div className="text-sm text-slate-600 dark:text-slate-400">
+                                    {selectedUsers.length} users selected
+                                </div>
+                                <div className="flex gap-2">
+                                    {manageTab === 'pledge' ? (
+                                        <>
+                                            <button
+                                                onClick={() => handleBulkUpdate('active')}
+                                                disabled={selectedUsers.length === 0}
+                                                className="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                            >
+                                                <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                                                Promote to Active
+                                            </button>
+                                            <button
+                                                onClick={() => handleBulkUpdate('prospect')}
+                                                disabled={selectedUsers.length === 0}
+                                                className="px-3 py-1.5 text-xs bg-slate-600 text-white rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                Move to Prospect
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={() => handleBulkUpdate('alumni')}
+                                                disabled={selectedUsers.length === 0}
+                                                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                Move to Alumni
+                                            </button>
+                                            <button
+                                                onClick={() => handleBulkUpdate('inactive')}
+                                                disabled={selectedUsers.length === 0}
+                                                className="px-3 py-1.5 text-xs bg-slate-600 text-white rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                Move to Inactive
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* User List Table */}
+                            <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                                        <tr>
+                                            <th className="p-4 w-4">
+                                                <input
+                                                    type="checkbox"
+                                                    onChange={(e) => {
+                                                        const currentList = allUsers.filter(u => manageTab === 'pledge' ? (!u.membershipType || u.membershipType === 'pledge') : (['active', 'associate'].includes(u.membershipType)));
+                                                        if (e.target.checked) {
+                                                            setSelectedUsers(currentList.map(u => u._id));
+                                                        } else {
+                                                            setSelectedUsers([]);
+                                                        }
+                                                    }}
+                                                    checked={selectedUsers.length > 0 && selectedUsers.length === allUsers.filter(u => manageTab === 'pledge' ? (!u.membershipType || u.membershipType === 'pledge') : (['active', 'associate'].includes(u.membershipType))).length}
+                                                />
+                                            </th>
+                                            <th className="px-6 py-3">Name</th>
+                                            <th className="px-6 py-3">Email</th>
+                                            <th className="px-6 py-3">Current Status</th>
+                                            <th className="px-6 py-3">Pledge Class</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {allUsers
+                                            .filter(u => manageTab === 'pledge' ? (!u.membershipType || u.membershipType === 'pledge') : (['active', 'associate'].includes(u.membershipType)))
+                                            .map(user => (
+                                                <tr key={user._id} className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                                    <td className="p-4 w-4">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedUsers.includes(user._id)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setSelectedUsers([...selectedUsers, user._id]);
+                                                                else setSelectedUsers(selectedUsers.filter(id => id !== user._id));
+                                                            }}
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">
+                                                        {user.firstName} {user.lastName}
+                                                        {user.position && <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{user.position}</span>}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-slate-500">{user.email}</td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`px-2 py-1 rounded text-xs font-medium capitalize ${user.membershipType === 'active' ? 'bg-green-100 text-green-700' :
+                                                            user.membershipType === 'pledge' ? 'bg-yellow-100 text-yellow-700' :
+                                                                'bg-slate-100 text-slate-700'
+                                                            }`}>
+                                                            {user.membershipType || 'pledge'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-slate-500">{user.pledgeClass || '-'}</td>
+                                                </tr>
+                                            ))}
+                                        {allUsers.filter(u => manageTab === 'pledge' ? (!u.membershipType || u.membershipType === 'pledge') : (['active', 'associate'].includes(u.membershipType))).length === 0 && (
+                                            <tr>
+                                                <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
+                                                    No users found in this category.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
-        </main>
+        </div>
     );
 };
-
 export default OfficerDashboard;

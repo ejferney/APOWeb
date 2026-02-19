@@ -5,18 +5,60 @@ import { format } from 'date-fns';
 
 const MemberDashboard = () => {
     const { user } = useAuth();
+    const [goals, setGoals] = useState({ service: 0, fellowship: 0, leadership: 0 });
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchHistory = async () => {
+        const fetchData = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await fetch('http://localhost:5000/api/events?attended=true&status=completed', {
-                    headers: { 'x-auth-token': token }
-                });
-                if (res.ok) {
-                    setHistory(await res.json());
+                const [historyRes, reqRes, userRes] = await Promise.all([
+                    fetch(`http://localhost:5000/api/events?attended=true&status=completed&t=${Date.now()}`, {
+                        headers: { 'x-auth-token': token },
+                        cache: 'no-cache'
+                    }),
+                    fetch(`http://localhost:5000/api/requirements?t=${Date.now()}`, {
+                        headers: { 'x-auth-token': token },
+                        cache: 'no-cache'
+                    }),
+                    fetch(`http://localhost:5000/api/auth/me?t=${Date.now()}`, {
+                        headers: { 'x-auth-token': token },
+                        cache: 'no-cache'
+                    })
+                ]);
+
+                if (historyRes.ok) {
+                    setHistory(await historyRes.json());
+                }
+
+                let currentUserType = user?.membershipType || 'pledge';
+
+                // If we got fresh user data, use that instead of the cached context
+                if (userRes.ok) {
+                    const freshUser = await userRes.json();
+                    if (freshUser && freshUser.membershipType) {
+                        currentUserType = freshUser.membershipType;
+                    }
+                }
+
+                if (reqRes.ok) {
+                    const requirements = await reqRes.json();
+
+                    // Ensure requirements is an array
+                    const reqList = Array.isArray(requirements) ? requirements : [];
+
+                    // Find matching requirement or fallback to pledge or hardcoded default
+                    const userReq = reqList.find(r => r.type === currentUserType) ||
+                        reqList.find(r => r.type === 'pledge') ||
+                        { serviceHours: 25, fellowshipHours: 10, leadershipHours: 5 };
+
+                    setGoals({
+                        service: userReq.serviceHours,
+                        fellowship: userReq.fellowshipHours,
+                        leadership: userReq.leadershipHours,
+                        type: userReq.type || currentUserType // Store the type for display
+                    });
                 }
             } catch (err) {
                 console.error(err);
@@ -24,8 +66,8 @@ const MemberDashboard = () => {
                 setLoading(false);
             }
         };
-        fetchHistory();
-    }, []);
+        fetchData();
+    }, [user]);
 
     // Compute stats from local history to ensure consistency with table
     const stats = React.useMemo(() => {
@@ -98,11 +140,7 @@ const MemberDashboard = () => {
         return acc;
     }, [history, user]);
 
-    const GOALS = {
-        service: 25,
-        fellowship: 10,
-        leadership: 3
-    };
+    const GOALS = goals;
 
     const getProgress = (current, goal) => Math.min(100, Math.round((current / goal) * 100));
 
@@ -113,7 +151,9 @@ const MemberDashboard = () => {
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                     <div className="flex flex-col gap-1">
                         <h1 className="text-3xl font-black tracking-tight">Welcome back, Brother {user?.firstName}</h1>
-                        <p className="text-slate-500 dark:text-slate-400 text-base font-normal">Today is {format(new Date(), 'MMMM d, yyyy')}. Track your progress below.</p>
+                        <p className="text-slate-500 dark:text-slate-400 text-base font-normal">
+                            Today is {format(new Date(), 'MMMM d, yyyy')}. Tracking <span className="font-bold text-primary capitalize">{goals.type || (user?.membershipType || 'pledge')}</span> goals.
+                        </p>
                     </div>
                     <div className="flex gap-3">
                         <button className="flex items-center justify-center gap-2 h-10 px-5 rounded-lg bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">

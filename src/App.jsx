@@ -14,6 +14,7 @@ import SignupPage from './pages/SignupPage';
 import PaintAvailability from './pages/PaintAvailability';
 import AvailabilityHeatmap from './pages/AvailabilityHeatmap';
 import CreateEvent from './pages/CreateEvent';
+import KanbanBoard from './pages/KanbanBoard';
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
           </ProtectedRoute>
         }>
           <Route path="/officer-portal" element={<OfficerDashboard />} />
+          <Route path="/kanban" element={<KanbanBoard />} />
           <Route path="/heatmap" element={<AvailabilityHeatmap />} />
           <Route path="/create-event" element={<CreateEvent />} />
         </Route>

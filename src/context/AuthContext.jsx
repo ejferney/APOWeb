@@ -63,6 +63,25 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const refreshUser = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            const res = await fetch('http://localhost:5000/api/auth/me', {
+                headers: { 'x-auth-token': token }
+            });
+
+            if (res.ok) {
+                const user = await res.json();
+                localStorage.setItem('user', JSON.stringify(user));
+                setUser(user);
+            }
+        } catch (err) {
+            console.error("Failed to refresh user:", err);
+        }
+    };
+
     const logout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -71,7 +90,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+        <AuthContext.Provider value={{ user, login, register, logout, refreshUser, loading }}>
             {children}
         </AuthContext.Provider>
     );
