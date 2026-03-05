@@ -330,11 +330,23 @@ const OfficerDashboard = () => {
                                                     <div>
                                                         <h4 className="font-medium text-sm text-slate-900 dark:text-slate-100">{task.title}</h4>
                                                         <p className="text-xs text-slate-500">{task.category?.prefix}{task.taskId?.slice(-3)} • Due {new Date(task.dueDate).toLocaleDateString()}</p>
+                                                        {task.dependencies && task.dependencies.length > 0 && (
+                                                            <p className="text-xs text-red-500 mt-0.5 flex items-center gap-1">
+                                                                <span className="material-symbols-outlined text-[12px]">link_off</span>
+                                                                Blocked by {task.dependencies.map(d => d.taskId).join(', ')}
+                                                            </p>
+                                                        )}
+                                                        {task.blocking && task.blocking.length > 0 && (
+                                                            <p className="text-xs text-orange-500 mt-0.5 flex items-center gap-1">
+                                                                <span className="material-symbols-outlined text-[12px]">link</span>
+                                                                Blocks: {task.blocking.map(b => b.taskId).join(', ')}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <select
                                                     value={task.status}
-                                                    onChange={(e) => updateTaskStatus(task._id, e.target.value)}
+                                                    onChange={(e) => handleTaskStatusUpdate(task._id, e.target.value)}
                                                     className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1"
                                                 >
                                                     <option>Todo</option>
