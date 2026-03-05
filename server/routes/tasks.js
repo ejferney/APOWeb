@@ -9,11 +9,32 @@ const Category = require('../models/Category');
 // @access  Private
 router.get('/', auth, async (req, res) => {
     try {
-        const tasks = await Task.find()
+        const query = {};
+        if (req.query.archived === 'true') {
+            query.isArchived = true;
+        } else {
+            query.isArchived = { $ne: true };
+        }
+
+        const tasks = await Task.find(query)
             .populate('assignedTo', 'firstName lastName avatar role')
             .populate('category', 'name prefix')
             .populate('dependencies', 'taskId title status')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
+
+        // Find tasks that have these tasks as dependencies (i.e. these tasks block them)
+        const taskIds = tasks.map(t => t._id);
+        const blockedTasks = await Task.find({ dependencies: { $in: taskIds } })
+            .select('_id taskId title dependencies status')
+            .lean();
+
+        for (let task of tasks) {
+            task.blocking = blockedTasks
+                .filter(bt => bt.dependencies.some(d => d.toString() === task._id.toString()))
+                .map(bt => ({ taskId: bt.taskId, title: bt.title, status: bt.status }));
+        }
+
         res.json(tasks);
     } catch (err) {
         console.error(err);
@@ -26,11 +47,24 @@ router.get('/', auth, async (req, res) => {
 // @access  Private
 router.get('/my-tasks', auth, async (req, res) => {
     try {
-        const tasks = await Task.find({ assignedTo: req.user.userId })
+        const tasks = await Task.find({ assignedTo: req.user.userId, isArchived: { $ne: true } })
             .populate('assignedTo', 'firstName lastName avatar role')
             .populate('category', 'name prefix')
             .populate('dependencies', 'taskId title status')
-            .sort({ dueDate: 1 });
+            .sort({ dueDate: 1 })
+            .lean();
+
+        const taskIds = tasks.map(t => t._id);
+        const blockedTasks = await Task.find({ dependencies: { $in: taskIds } })
+            .select('_id taskId title dependencies status')
+            .lean();
+
+        for (let task of tasks) {
+            task.blocking = blockedTasks
+                .filter(bt => bt.dependencies.some(d => d.toString() === task._id.toString()))
+                .map(bt => ({ taskId: bt.taskId, title: bt.title, status: bt.status }));
+        }
+
         res.json(tasks);
     } catch (err) {
         console.error(err);
@@ -102,7 +136,7 @@ router.put('/:id', auth, async (req, res) => {
         if (!task) return res.status(404).json({ message: 'Task not found' });
 
         // Allow update of fields
-        const { title, description, assignedTo, priority, status, startDate, dueDate, dependencies } = req.body;
+        const { title, description, assignedTo, priority, status, startDate, dueDate, dependencies, isArchived } = req.body;
 
         if (title) task.title = title;
         if (description) task.description = description;
@@ -112,6 +146,7 @@ router.put('/:id', auth, async (req, res) => {
         if (startDate) task.startDate = startDate;
         if (dueDate) task.dueDate = dueDate;
         if (dependencies) task.dependencies = dependencies;
+        if (isArchived !== undefined) task.isArchived = isArchived;
 
         await task.save();
 
