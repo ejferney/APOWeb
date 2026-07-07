@@ -1,3 +1,4 @@
+import { API_URL } from '../config';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -44,7 +45,7 @@ const CreateEvent = () => {
             const headers = { 'x-auth-token': token };
 
             // 1. Fetch All Events (for conflicts)
-            const resEvents = await fetch('http://localhost:5000/api/events', { headers });
+            const resEvents = await fetch(`${API_URL}/api/events`, { headers });
             const dataEvents = await resEvents.json();
             setEvents(dataEvents);
 
@@ -85,8 +86,8 @@ const CreateEvent = () => {
         try {
             const token = localStorage.getItem('token');
             const url = editId
-                ? `http://localhost:5000/api/events/${editId}`
-                : 'http://localhost:5000/api/events';
+                ? `${API_URL}/api/events/${editId}`
+                : `${API_URL}/api/events`;
             const method = editId ? 'PUT' : 'POST';
 
             const res = await fetch(url, {

@@ -1,3 +1,4 @@
+import { API_URL } from '../config';
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
@@ -33,10 +34,10 @@ const KanbanBoard = () => {
                 };
 
                 const [taskRes, catRes, userRes, meRes] = await Promise.all([
-                    fetchWithTimeout('http://localhost:5000/api/tasks', { headers: { 'x-auth-token': token } }),
-                    fetchWithTimeout('http://localhost:5000/api/categories', { headers: { 'x-auth-token': token } }),
-                    fetchWithTimeout('http://localhost:5000/api/users', { headers: { 'x-auth-token': token } }),
-                    fetchWithTimeout('http://localhost:5000/api/users/me', { headers: { 'x-auth-token': token } })
+                    fetchWithTimeout(`${API_URL}/api/tasks`, { headers: { 'x-auth-token': token } }),
+                    fetchWithTimeout(`${API_URL}/api/categories`, { headers: { 'x-auth-token': token } }),
+                    fetchWithTimeout(`${API_URL}/api/users`, { headers: { 'x-auth-token': token } }),
+                    fetchWithTimeout(`${API_URL}/api/users/me`, { headers: { 'x-auth-token': token } })
                 ]);
 
                 if (!taskRes.ok) throw new Error('Failed to fetch tasks');
@@ -77,7 +78,7 @@ const KanbanBoard = () => {
         // API Call
         try {
             const token = localStorage.getItem('token');
-            await fetch(`http://localhost:5000/api/tasks/${draggableId}`, {
+            await fetch(`${API_URL}/api/tasks/${draggableId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -95,7 +96,7 @@ const KanbanBoard = () => {
         e.preventDefault();
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:5000/api/tasks', {
+            const res = await fetch(`${API_URL}/api/tasks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
                 body: JSON.stringify(newTask)
@@ -115,7 +116,7 @@ const KanbanBoard = () => {
         e.preventDefault();
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:5000/api/tasks/${selectedTask._id}`, {
+            const res = await fetch(`${API_URL}/api/tasks/${selectedTask._id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
                 body: JSON.stringify(selectedTask)
@@ -135,7 +136,7 @@ const KanbanBoard = () => {
         if (!confirm(`Are you sure you want to archive task ${selectedTask.taskId}? This will remove it from the board.`)) return;
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:5000/api/tasks/${selectedTask._id}`, {
+            const res = await fetch(`${API_URL}/api/tasks/${selectedTask._id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
                 body: JSON.stringify({ isArchived: true })
@@ -154,7 +155,7 @@ const KanbanBoard = () => {
         if (!confirm(`Are you sure you want to PERMANENTLY delete task ${selectedTask.taskId}? This action cannot be undone.`)) return;
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:5000/api/tasks/${selectedTask._id}`, {
+            const res = await fetch(`${API_URL}/api/tasks/${selectedTask._id}`, {
                 method: 'DELETE',
                 headers: { 'x-auth-token': token }
             });
@@ -171,7 +172,7 @@ const KanbanBoard = () => {
     const fetchArchivedTasks = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:5000/api/tasks?archived=true', {
+            const res = await fetch(`${API_URL}/api/tasks?archived=true`, {
                 headers: { 'x-auth-token': token }
             });
             if (res.ok) {
@@ -186,7 +187,7 @@ const KanbanBoard = () => {
     const handleUnarchiveTask = async (taskId) => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:5000/api/tasks/${taskId}`, {
+            const res = await fetch(`${API_URL}/api/tasks/${taskId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
                 body: JSON.stringify({ isArchived: false, status: 'Completed' }) // Put it back into 'Completed' column just in case
@@ -208,7 +209,7 @@ const KanbanBoard = () => {
     const handleSignUp = async (taskId) => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:5000/api/tasks/${taskId}`, {
+            const res = await fetch(`${API_URL}/api/tasks/${taskId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

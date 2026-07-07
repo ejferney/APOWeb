@@ -1,3 +1,4 @@
+import { API_URL } from '../config';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -25,7 +26,6 @@ const Calendar = () => {
 
     const [currentDate, setCurrentDate] = useState(new Date());
     const [events, setEvents] = useState([]);
-    const [loading, setLoading] = useState(true);
 
     // Drawer / Modal State
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -36,23 +36,70 @@ const Calendar = () => {
     const [rsvpModalOpen, setRsvpModalOpen] = useState(false);
     const [showCompletionModal, setShowCompletionModal] = useState(false);
 
+    // Check-in state
+    const [checkInInput, setCheckInInput] = useState('');
+    const [checkInMsg, setCheckInMsg] = useState('');
+
+    const toggleCheckIn = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/api/events/${selectedEvent._id}/checkin`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                body: JSON.stringify({ open: !selectedEvent.checkInOpen })
+            });
+            if (res.ok) {
+                const updatedEvent = await res.json();
+                setSelectedEvent(updatedEvent);
+                setEvents(prev => prev.map(ev => ev._id === updatedEvent._id ? updatedEvent : ev));
+            }
+        } catch (err) {
+            console.error("Check-in toggle error", err);
+        }
+    };
+
+    const submitCheckIn = async () => {
+        setCheckInMsg('');
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/api/events/${selectedEvent._id}/checkin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                body: JSON.stringify({ code: checkInInput })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                const updatedEvent = { ...selectedEvent, attendees: data };
+                setSelectedEvent(updatedEvent);
+                setEvents(prev => prev.map(ev => ev._id === selectedEvent._id ? updatedEvent : ev));
+                setCheckInInput('');
+                setCheckInMsg('You are checked in!');
+            } else {
+                setCheckInMsg(data.msg || 'Check-in failed.');
+            }
+        } catch (err) {
+            console.error("Check-in error", err);
+            setCheckInMsg('Error occurred.');
+        }
+    };
+
     // Fetch Events
     const fetchEvents = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:5000/api/events', {
+            const res = await fetch(`${API_URL}/api/events`, {
                 headers: { 'x-auth-token': token }
             });
             const data = await res.json();
             setEvents(data);
         } catch (err) {
             console.error(err);
-        } finally {
-            setLoading(false);
         }
     };
 
     useEffect(() => {
+        // Initial load; fetchEvents is also reused by the delete handler
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchEvents();
     }, []);
 
@@ -91,7 +138,7 @@ const Calendar = () => {
     const handleRsvpSubmit = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:5000/api/events/${selectedEvent._id}/rsvp`, {
+            const res = await fetch(`${API_URL}/api/events/${selectedEvent._id}/rsvp`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -119,7 +166,7 @@ const Calendar = () => {
     const handleLeaveEvent = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:5000/api/events/${selectedEvent._id}/rsvp`, {
+            const res = await fetch(`${API_URL}/api/events/${selectedEvent._id}/rsvp`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -205,6 +252,8 @@ const Calendar = () => {
                                                     e.stopPropagation();
                                                     setSelectedEvent(event);
                                                     setDrawerOpen(true);
+                                                    setCheckInInput('');
+                                                    setCheckInMsg('');
                                                 }}
                                                 className={`flex items-center justify-between gap-1.5 px-2 py-1 rounded border-l-2 text-xs font-semibold cursor-pointer transition-all hover:scale-[1.02] hover:shadow-sm ${getTypeColor(event.type)}`}
                                             >
@@ -296,7 +345,7 @@ const Calendar = () => {
                                                     // Ideally we'd have a UI popover "Click again to confirm", but for now executing immediately.
                                                     try {
                                                         const token = localStorage.getItem('token');
-                                                        const res = await fetch(`http://localhost:5000/api/events/${selectedEvent._id}`, {
+                                                        const res = await fetch(`${API_URL}/api/events/${selectedEvent._id}`, {
                                                             method: 'DELETE',
                                                             headers: { 'x-auth-token': token }
                                                         });
@@ -314,6 +363,80 @@ const Calendar = () => {
                                             </button>
                                         </div>
                                     </div>
+                                )}
+
+                                {isOfficer && selectedEvent.status !== 'completed' && (
+                                    <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex flex-col gap-3">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm font-bold">Attendance Check-In</p>
+                                                <p className="text-xs text-slate-500">
+                                                    {selectedEvent.checkInOpen
+                                                        ? 'Open — read the code out loud at the event.'
+                                                        : 'Closed — open it when the event starts.'}
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={toggleCheckIn}
+                                                className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${selectedEvent.checkInOpen
+                                                    ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                                    : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
+                                            >
+                                                {selectedEvent.checkInOpen ? 'Close Check-In' : 'Open Check-In'}
+                                            </button>
+                                        </div>
+                                        {selectedEvent.checkInOpen && selectedEvent.checkInCode && (
+                                            <div className="flex items-center justify-center gap-3 py-2 bg-white dark:bg-slate-900 rounded-lg border border-dashed border-primary/50">
+                                                <span className="text-xs uppercase font-bold text-slate-400">Code</span>
+                                                <span className="text-3xl font-black tracking-[0.3em] text-primary">{selectedEvent.checkInCode}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {selectedEvent.checkInOpen && selectedEvent.status !== 'completed' && (
+                                    (() => {
+                                        const uId = user?._id || user?.id;
+                                        const myAttendance = selectedEvent.attendees?.find(a => {
+                                            const aId = a.user?._id || a.user;
+                                            return aId && uId && aId.toString() === uId.toString();
+                                        });
+                                        if (myAttendance?.checkedIn) {
+                                            return (
+                                                <div className="p-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold text-sm">
+                                                    <span className="material-symbols-outlined">verified</span>
+                                                    You're checked in!
+                                                </div>
+                                            );
+                                        }
+                                        return (
+                                            <div className="p-4 rounded-lg border-2 border-primary/40 bg-blue-50/50 dark:bg-blue-900/10 flex flex-col gap-2">
+                                                <p className="text-sm font-bold flex items-center gap-2">
+                                                    <span className="material-symbols-outlined text-primary text-[20px]">how_to_reg</span>
+                                                    Check-in is open!
+                                                </p>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={checkInInput}
+                                                        onChange={(e) => setCheckInInput(e.target.value.toUpperCase())}
+                                                        placeholder="Enter code"
+                                                        maxLength={4}
+                                                        className="flex-1 text-center text-lg font-bold tracking-[0.3em] uppercase px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
+                                                    />
+                                                    <button
+                                                        onClick={submitCheckIn}
+                                                        className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-bold rounded-lg"
+                                                    >
+                                                        Check In
+                                                    </button>
+                                                </div>
+                                                {checkInMsg && (
+                                                    <p className={`text-xs font-medium ${checkInMsg.includes('checked in') ? 'text-emerald-600' : 'text-red-500'}`}>{checkInMsg}</p>
+                                                )}
+                                            </div>
+                                        );
+                                    })()
                                 )}
 
                                 {selectedEvent.status === 'completed' ? (
@@ -382,6 +505,9 @@ const Calendar = () => {
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-2">
                                                                     <span className="text-sm font-medium truncate">{attUser.firstName || 'Unknown'} {attUser.lastName || 'User'}</span>
+                                                                    {attendee.checkedIn && (
+                                                                        <span className="material-symbols-outlined text-[14px] text-emerald-500" title="Checked in">verified</span>
+                                                                    )}
                                                                     {attendee.isDriver && (
                                                                         <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-bold border border-blue-200 flex items-center gap-0.5">
                                                                             <span className="material-symbols-outlined text-[10px]">directions_car</span>

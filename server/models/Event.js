@@ -37,8 +37,13 @@ const EventSchema = new mongoose.Schema({
         comment: { type: String, default: '' },
         creditAmount: { type: Number }, // Optional override
         isDriver: { type: Boolean, default: false },
-        seats: { type: Number, default: 0 }
+        seats: { type: Number, default: 0 },
+        checkedIn: { type: Boolean, default: false }
     }],
+
+    // Live attendance check-in
+    checkInOpen: { type: Boolean, default: false },
+    checkInCode: { type: String },
 
     completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

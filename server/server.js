@@ -7,7 +7,10 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+// In production set CLIENT_URL (comma-separated origins); otherwise allow all (dev)
+app.use(cors({
+    origin: process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : true
+}));
 app.use(express.json());
 
 // Database Connection
@@ -33,6 +36,9 @@ app.use('/api/events', eventRoutes);
 app.use('/api/requirements', require('./routes/requirements'));
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/categories', require('./routes/categories'));
+app.use('/api/announcements', require('./routes/announcements'));
+app.use('/api/service-logs', require('./routes/serviceLogs'));
+app.use('/api/clans', require('./routes/clans'));
 
 // Start Server
 app.listen(PORT, () => {

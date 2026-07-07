@@ -32,7 +32,19 @@ router.post('/register', async (req, res) => {
         const payload = { userId: user.id, role: user.role };
         const token = jwt.sign(payload, process.env.JWT_SECRET || 'secret123', { expiresIn: '1d' });
 
-        res.status(201).json({ token, user: { id: user.id, name: `${firstName} ${lastName}`, role: user.role } });
+        res.status(201).json({
+            token,
+            user: {
+                id: user.id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                name: `${firstName} ${lastName}`,
+                email: user.email,
+                role: user.role,
+                membershipType: user.membershipType,
+                position: user.position
+            }
+        });
 
     } catch (err) {
         console.error(err);
@@ -57,7 +69,19 @@ router.post('/login', async (req, res) => {
         const payload = { userId: user.id, role: user.role };
         const token = jwt.sign(payload, process.env.JWT_SECRET || 'secret123', { expiresIn: '1d' });
 
-        res.json({ token, user: { id: user.id, name: `${user.firstName} ${user.lastName}`, role: user.role } });
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                name: `${user.firstName} ${user.lastName}`,
+                email: user.email,
+                role: user.role,
+                membershipType: user.membershipType,
+                position: user.position
+            }
+        });
 
     } catch (err) {
         console.error(err);
@@ -71,7 +95,10 @@ router.post('/login', async (req, res) => {
 const auth = require('../middleware/auth');
 router.get('/me', auth, async (req, res) => {
     try {
-        const user = await User.findById(req.user.userId).select('-password');
+        const user = await User.findById(req.user.userId)
+            .select('-password')
+            .populate('big', 'firstName lastName')
+            .populate('clan');
         res.json(user);
     } catch (err) {
         console.error(err);

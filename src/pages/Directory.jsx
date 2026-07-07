@@ -1,3 +1,4 @@
+import { API_URL } from '../config';
 import React, { useState, useEffect } from 'react';
 
 import { useAuth } from '../context/AuthContext';
@@ -12,7 +13,7 @@ const Directory = () => {
         const fetchUsers = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await fetch('http://localhost:5000/api/users', {
+                const res = await fetch(`${API_URL}/api/users`, {
                     headers: {
                         'x-auth-token': token
                     }
@@ -34,7 +35,7 @@ const Directory = () => {
     const handleUpdateStatus = async (userId, newStatus) => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
+            const res = await fetch(`${API_URL}/api/users/${userId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

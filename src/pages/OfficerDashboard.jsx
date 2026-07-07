@@ -1,8 +1,21 @@
+import { API_URL } from '../config';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import RequirementsEditor from '../components/RequirementsEditor';
+import { useAuth } from '../context/AuthContext';
+
+// Which officer position reviews each credit category (mirrors the backend).
+const CATEGORY_APPROVER = { leadership: 'VP CoLD', fellowship: 'VP Membership' };
 
 const OfficerDashboard = () => {
+    const { user } = useAuth();
+    const canApprove = (category) => {
+        if (user?.role === 'admin' || user?.position === 'President') return true;
+        const owner = CATEGORY_APPROVER[category];
+        if (owner) return user?.position === owner;
+        return user?.role === 'officer'; // service, committee
+    };
+
     const [showRequirements, setShowRequirements] = useState(false);
     const [memberStats, setMemberStats] = useState({
         active: 0,
@@ -11,6 +24,76 @@ const OfficerDashboard = () => {
         total: 0
     });
     const [myTasks, setMyTasks] = useState([]);
+    const [upcomingCount, setUpcomingCount] = useState(0);
+    const [pendingLogs, setPendingLogs] = useState([]);
+
+    const fetchPendingLogs = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/api/service-logs?status=pending`, {
+                headers: { 'x-auth-token': token }
+            });
+            if (res.ok) {
+                const logs = await res.json();
+                if (Array.isArray(logs)) setPendingLogs(logs);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const reviewLog = async (logId, action) => {
+        let note = '';
+        if (action === 'deny') {
+            note = prompt('Reason for denying (shown to the member):') || '';
+        }
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/api/service-logs/${logId}/review`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                body: JSON.stringify({ action, note })
+            });
+            if (res.ok) {
+                setPendingLogs(prev => prev.filter(l => l._id !== logId));
+            } else {
+                alert('Failed to review submission.');
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    // State for Announcements
+    const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+    const [annForm, setAnnForm] = useState({ title: '', body: '' });
+    const [annMessage, setAnnMessage] = useState('');
+
+    const submitAnnouncement = async (e) => {
+        e.preventDefault();
+        if (!annForm.title.trim() || !annForm.body.trim()) return;
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/api/announcements`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                body: JSON.stringify(annForm)
+            });
+            if (res.ok) {
+                setAnnMessage('Announcement posted!');
+                setTimeout(() => {
+                    setShowAnnouncementModal(false);
+                    setAnnMessage('');
+                    setAnnForm({ title: '', body: '' });
+                }, 1200);
+            } else {
+                setAnnMessage('Failed to post announcement.');
+            }
+        } catch (err) {
+            console.error(err);
+            setAnnMessage('Error occurred.');
+        }
+    };
 
     // State for Officer Transition
     const [showTransitionModal, setShowTransitionModal] = useState(false);
@@ -29,7 +112,7 @@ const OfficerDashboard = () => {
         setShowTransitionModal(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:5000/api/users', {
+            const res = await fetch(`${API_URL}/api/users`, {
                 headers: { 'x-auth-token': token }
             });
             if (res.ok) {
@@ -46,7 +129,7 @@ const OfficerDashboard = () => {
 
         // Convert map to array for backend
         const transitions = Object.entries(transitionData)
-            .filter(([_, newUserId]) => newUserId !== '') // Filter out empty selections
+            .filter(([, newUserId]) => newUserId !== '') // Filter out empty selections
             .map(([position, newUserId]) => ({ position, newUserId }));
 
         if (transitions.length === 0) {
@@ -56,7 +139,7 @@ const OfficerDashboard = () => {
 
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:5000/api/users/transition', {
+            const res = await fetch(`${API_URL}/api/users/transition`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
                 body: JSON.stringify({ transitions })
@@ -88,7 +171,7 @@ const OfficerDashboard = () => {
     const fetchMyTasks = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:5000/api/tasks/my-tasks', {
+            const res = await fetch(`${API_URL}/api/tasks/my-tasks`, {
                 headers: { 'x-auth-token': token }
             });
             if (res.ok) {
@@ -102,7 +185,7 @@ const OfficerDashboard = () => {
     const handleTaskStatusUpdate = async (taskId, newStatus) => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:5000/api/tasks/${taskId}`, {
+            const res = await fetch(`${API_URL}/api/tasks/${taskId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -122,7 +205,7 @@ const OfficerDashboard = () => {
         const fetchUsers = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await fetch('http://localhost:5000/api/users', {
+                const res = await fetch(`${API_URL}/api/users`, {
                     headers: { 'x-auth-token': token }
                 });
 
@@ -150,8 +233,27 @@ const OfficerDashboard = () => {
             }
         };
 
+        const fetchUpcoming = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch(`${API_URL}/api/events?status=upcoming`, {
+                    headers: { 'x-auth-token': token }
+                });
+                if (res.ok) {
+                    const events = await res.json();
+                    if (Array.isArray(events)) {
+                        setUpcomingCount(events.filter(e => new Date(e.start) > new Date()).length);
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        };
+
         fetchUsers();
         fetchMyTasks();
+        fetchUpcoming();
+        fetchPendingLogs();
     }, []);
 
     // State for Manage Users
@@ -165,7 +267,7 @@ const OfficerDashboard = () => {
         if (allUsers.length === 0) {
             try {
                 const token = localStorage.getItem('token');
-                const res = await fetch('http://localhost:5000/api/users', {
+                const res = await fetch(`${API_URL}/api/users`, {
                     headers: { 'x-auth-token': token }
                 });
                 if (res.ok) setAllUsers(await res.json());
@@ -180,7 +282,7 @@ const OfficerDashboard = () => {
 
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:5000/api/users/status-bulk', {
+            const res = await fetch(`${API_URL}/api/users/status-bulk`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
                 body: JSON.stringify({ userIds: selectedUsers, membershipType: newStatus })
@@ -190,7 +292,7 @@ const OfficerDashboard = () => {
                 alert('Users updated successfully!');
                 setSelectedUsers([]);
                 // Refresh users
-                const userRes = await fetch('http://localhost:5000/api/users', { headers: { 'x-auth-token': token } });
+                const userRes = await fetch(`${API_URL}/api/users`, { headers: { 'x-auth-token': token } });
                 if (userRes.ok) setAllUsers(await userRes.json());
                 window.location.reload();
             } else {
@@ -277,8 +379,8 @@ const OfficerDashboard = () => {
                     <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-slate-500">Pending Issues</p>
-                                <h3 className="text-2xl font-bold mt-1">5</h3>
+                                <p className="text-sm font-medium text-slate-500">Pending Approvals</p>
+                                <h3 className="text-2xl font-bold mt-1">{pendingLogs.length}</h3>
                             </div>
                             <span className="p-3 bg-orange-50 text-orange-600 rounded-full">
                                 <span className="material-symbols-outlined">warning</span>
@@ -290,7 +392,7 @@ const OfficerDashboard = () => {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm font-medium text-slate-500">Upcoming Events</p>
-                                <h3 className="text-2xl font-bold mt-1">8</h3>
+                                <h3 className="text-2xl font-bold mt-1">{upcomingCount}</h3>
                             </div>
                             <span className="p-3 bg-purple-50 text-purple-600 rounded-full">
                                 <span className="material-symbols-outlined">event</span>
@@ -360,14 +462,65 @@ const OfficerDashboard = () => {
                             </div>
                         </div>
 
-                        {/* Recent Service Logs */}
+                        {/* Pending Hour Approvals */}
                         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
                             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                <span className="material-symbols-outlined text-green-500">history</span>
-                                Recent Activity
+                                <span className="material-symbols-outlined text-orange-500">approval_delegation</span>
+                                Pending Hour Approvals
+                                {pendingLogs.length > 0 && (
+                                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{pendingLogs.length}</span>
+                                )}
                             </h2>
-                            {/* Placeholder for logs */}
-                            <div className="text-slate-500 text-sm">No recent activity logs found.</div>
+                            {pendingLogs.length === 0 ? (
+                                <div className="text-slate-500 text-sm">No submissions waiting for review. 🎉</div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {pendingLogs.map(log => (
+                                        <div key={log._id} className="flex items-start justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="font-medium text-sm text-slate-900 dark:text-slate-100">
+                                                        {log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Unknown member'}
+                                                    </span>
+                                                    <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${log.category === 'service' ? 'bg-blue-100 text-blue-700' :
+                                                        log.category === 'fellowship' ? 'bg-purple-100 text-purple-700' :
+                                                            log.category === 'leadership' ? 'bg-amber-100 text-amber-700' :
+                                                                'bg-rose-100 text-rose-700'}`}>
+                                                        {log.category}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{log.hours} hrs</span>
+                                                    <span className="text-xs text-slate-400">{new Date(log.date).toLocaleDateString(undefined, { timeZone: 'UTC' })}</span>
+                                                </div>
+                                                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{log.description}</p>
+                                                {log.contact && (
+                                                    <p className="text-xs text-slate-400 mt-0.5">Verify with: {log.contact}</p>
+                                                )}
+                                            </div>
+                                            {canApprove(log.category) ? (
+                                                <div className="flex gap-2 shrink-0">
+                                                    <button
+                                                        onClick={() => reviewLog(log._id, 'approve')}
+                                                        className="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 font-medium"
+                                                    >
+                                                        Approve
+                                                    </button>
+                                                    <button
+                                                        onClick={() => reviewLog(log._id, 'deny')}
+                                                        className="px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700 font-medium"
+                                                    >
+                                                        Deny
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-slate-400 shrink-0 whitespace-nowrap flex items-center gap-1">
+                                                    <span className="material-symbols-outlined text-[14px]">schedule</span>
+                                                    Awaiting {CATEGORY_APPROVER[log.category] || 'officer'}
+                                                </span>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -380,7 +533,10 @@ const OfficerDashboard = () => {
                                     <span className="material-symbols-outlined block mb-1 text-blue-500">event</span>
                                     <span className="text-xs font-medium">Create Event</span>
                                 </Link>
-                                <button className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                                <button
+                                    onClick={() => setShowAnnouncementModal(true)}
+                                    className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                >
                                     <span className="material-symbols-outlined block mb-1 text-green-500">campaign</span>
                                     <span className="text-xs font-medium">Announcement</span>
                                 </button>
@@ -391,14 +547,69 @@ const OfficerDashboard = () => {
                                     <span className="material-symbols-outlined block mb-1 text-purple-500">group_add</span>
                                     <span className="text-xs font-medium">Manage Users</span>
                                 </button>
-                                <button className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                                    <span className="material-symbols-outlined block mb-1 text-orange-500">download</span>
+                                <Link to="/reports" className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                                    <span className="material-symbols-outlined block mb-1 text-orange-500">monitoring</span>
                                     <span className="text-xs font-medium">Reports</span>
-                                </button>
+                                </Link>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                {/* Announcement Modal */}
+                {showAnnouncementModal && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white dark:bg-slate-900 rounded-xl max-w-lg w-full p-6 shadow-xl relative">
+                            <button
+                                onClick={() => setShowAnnouncementModal(false)}
+                                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+
+                            <h2 className="text-xl font-bold mb-1 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-green-600">campaign</span>
+                                Post Announcement
+                            </h2>
+                            <p className="text-sm text-slate-500 mb-6">This will appear on every member's dashboard.</p>
+
+                            {annMessage && (
+                                <div className={`p-3 rounded-lg mb-4 text-sm font-medium ${annMessage.includes('posted') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                    {annMessage}
+                                </div>
+                            )}
+
+                            <form onSubmit={submitAnnouncement} className="flex flex-col gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Title</label>
+                                    <input
+                                        type="text"
+                                        value={annForm.title}
+                                        onChange={e => setAnnForm({ ...annForm, title: e.target.value })}
+                                        placeholder="e.g. Dues Deadline Extended"
+                                        className="w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Message</label>
+                                    <textarea
+                                        value={annForm.body}
+                                        onChange={e => setAnnForm({ ...annForm, body: e.target.value })}
+                                        rows={5}
+                                        placeholder="Write the announcement..."
+                                        className="w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+                                        required
+                                    />
+                                </div>
+                                <div className="flex justify-end gap-3 pt-2">
+                                    <button type="button" onClick={() => setShowAnnouncementModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
+                                    <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">Post</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
 
                 {/* Transition Modal */}
                 {showTransitionModal && (

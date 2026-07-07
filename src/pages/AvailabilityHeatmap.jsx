@@ -1,3 +1,4 @@
+import { API_URL } from '../config';
 import React, { useState, useEffect } from 'react';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -12,7 +13,7 @@ const AvailabilityHeatmap = () => {
         const fetchHeatmap = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await fetch('http://localhost:5000/api/availability/all', {
+                const res = await fetch(`${API_URL}/api/availability/all`, {
                     headers: { 'x-auth-token': token }
                 });
                 const data = await res.json();

@@ -1,3 +1,4 @@
+import { API_URL } from '../config';
 
 import React, { useState, useEffect } from 'react';
 
@@ -26,7 +27,7 @@ const CompletionManager = ({ event, onComplete, onClose }) => {
         const fetchUsers = async () => {
             const token = localStorage.getItem('token');
             try {
-                const res = await fetch('http://localhost:5000/api/users', {
+                const res = await fetch(`${API_URL}/api/users`, {
                     headers: { 'x-auth-token': token }
                 });
                 if (res.ok) {
@@ -59,7 +60,7 @@ const CompletionManager = ({ event, onComplete, onClose }) => {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:5000/api/events/${event._id}/complete`, {
+            const res = await fetch(`${API_URL}/api/events/${event._id}/complete`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

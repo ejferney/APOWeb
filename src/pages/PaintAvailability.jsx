@@ -1,3 +1,4 @@
+import { API_URL } from '../config';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
@@ -17,7 +18,7 @@ const PaintAvailability = () => {
         const fetchAvailability = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await fetch('http://localhost:5000/api/availability/me', {
+                const res = await fetch(`${API_URL}/api/availability/me`, {
                     headers: { 'x-auth-token': token }
                 });
                 const data = await res.json();
@@ -67,7 +68,7 @@ const PaintAvailability = () => {
         setMsg('');
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:5000/api/availability', {
+            const res = await fetch(`${API_URL}/api/availability`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

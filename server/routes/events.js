@@ -24,6 +24,15 @@ router.get('/', auth, async (req, res) => {
             .populate('attendees.user', 'firstName lastName email')
             .populate('completedBy', 'firstName lastName');
 
+        // Members shouldn't see the check-in code — it's read out at the event
+        if (req.user.role !== 'officer' && req.user.role !== 'admin') {
+            return res.json(events.map(e => {
+                const obj = e.toObject();
+                delete obj.checkInCode;
+                return obj;
+            }));
+        }
+
         res.json(events);
     } catch (err) {
         console.error(err);
@@ -278,6 +287,80 @@ router.put('/:id/complete', auth, async (req, res) => {
     } catch (err) {
         console.error("Completion Error:", err);
         res.status(500).json({ msg: 'Server Error', error: err.message });
+    }
+});
+
+// @route   PUT /api/events/:id/checkin
+// @desc    Open or close attendance check-in (generates a code when opening)
+// @access  Private (Officer/Admin only)
+router.put('/:id/checkin', auth, async (req, res) => {
+    try {
+        if (req.user.role !== 'officer' && req.user.role !== 'admin') {
+            return res.status(403).json({ msg: 'Access denied' });
+        }
+
+        const event = await Event.findById(req.params.id);
+        if (!event) {
+            return res.status(404).json({ msg: 'Event not found' });
+        }
+        if (event.status === 'completed') {
+            return res.status(400).json({ msg: 'Event is already completed' });
+        }
+
+        const { open } = req.body;
+        event.checkInOpen = !!open;
+        if (event.checkInOpen && !event.checkInCode) {
+            // Simple 4-character code officers can read out in the room
+            event.checkInCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+        }
+        if (!event.checkInOpen) {
+            event.checkInCode = undefined; // fresh code next time
+        }
+        await event.save();
+
+        const populated = await Event.findById(event._id)
+            .populate('attendees.user', 'firstName lastName email');
+        res.json(populated);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server Error');
+    }
+});
+
+// @route   POST /api/events/:id/checkin
+// @desc    Check in to an event with the code (adds you as attendee if needed)
+// @access  Private
+router.post('/:id/checkin', auth, async (req, res) => {
+    try {
+        const event = await Event.findById(req.params.id);
+        if (!event) {
+            return res.status(404).json({ msg: 'Event not found' });
+        }
+        if (!event.checkInOpen) {
+            return res.status(400).json({ msg: 'Check-in is not open for this event' });
+        }
+
+        const { code } = req.body;
+        if (!code || code.trim().toUpperCase() !== event.checkInCode) {
+            return res.status(400).json({ msg: 'Incorrect check-in code' });
+        }
+
+        const existing = event.attendees.find(
+            a => a.user && a.user.toString() === req.user.userId
+        );
+        if (existing) {
+            existing.checkedIn = true;
+        } else {
+            event.attendees.push({ user: req.user.userId, checkedIn: true });
+        }
+        await event.save();
+
+        const populated = await Event.findById(event._id)
+            .populate('attendees.user', 'firstName lastName email');
+        res.json(populated.attendees);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server Error');
     }
 });
 

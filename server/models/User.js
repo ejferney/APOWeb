@@ -12,6 +12,8 @@ const UserSchema = new mongoose.Schema({
     phone: { type: String },
     avatar: { type: String },
     position: { type: String }, // e.g., 'President', 'VP Service'
+    big: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // this member's big
+    clan: { type: mongoose.Schema.Types.ObjectId, ref: 'Clan' }, // family/clan they belong to
     serviceHours: { type: Number, default: 0 },
     fellowshipHours: { type: Number, default: 0 },
     leadershipHours: { type: Number, default: 0 },

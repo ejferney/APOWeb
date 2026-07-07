@@ -1,6 +1,8 @@
+import { API_URL } from '../config';
 import React, { useState, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
+import { computeEventStats, addServiceLogStats } from '../utils/credits';
 
 // ...imports
 import CompletionManager from './CompletionManager';
@@ -17,15 +19,27 @@ const ServiceLogs = () => {
     const [showCompletionModal, setShowCompletionModal] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState(null);
 
+    // Self-reported hours state
+    const [myLogs, setMyLogs] = useState([]);
+    const [showLogModal, setShowLogModal] = useState(false);
+    const [logForm, setLogForm] = useState({ category: 'service', hours: '', date: '', description: '', contact: '' });
+    const [logMessage, setLogMessage] = useState('');
+
     const fetchData = async () => {
         try {
             const token = localStorage.getItem('token');
             const headers = { 'x-auth-token': token };
 
             // Fetch Event History (Stats are now computed from this)
-            const histRes = await fetch('http://localhost:5000/api/events?attended=true&status=completed', { headers });
+            const [histRes, logsRes] = await Promise.all([
+                fetch(`${API_URL}/api/events?attended=true&status=completed`, { headers }),
+                fetch(`${API_URL}/api/service-logs/mine`, { headers })
+            ]);
             const histData = await histRes.json();
             setHistory(histData);
+            if (logsRes.ok) {
+                setMyLogs(await logsRes.json());
+            }
         } catch (err) {
             console.error("Dashboard Fetch Error", err);
         } finally {
@@ -33,91 +47,59 @@ const ServiceLogs = () => {
         }
     };
 
+    const submitLog = async (e) => {
+        e.preventDefault();
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/api/service-logs`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                body: JSON.stringify(logForm)
+            });
+            if (res.ok) {
+                setLogMessage('Submitted! An officer will review it.');
+                setLogForm({ category: 'service', hours: '', date: '', description: '', contact: '' });
+                fetchData();
+                setTimeout(() => {
+                    setShowLogModal(false);
+                    setLogMessage('');
+                }, 1500);
+            } else {
+                const data = await res.json().catch(() => ({}));
+                setLogMessage(data.msg || 'Failed to submit.');
+            }
+        } catch (err) {
+            console.error(err);
+            setLogMessage('Error occurred.');
+        }
+    };
+
+    const withdrawLog = async (id) => {
+        if (!confirm('Withdraw this submission?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/api/service-logs/${id}`, {
+                method: 'DELETE',
+                headers: { 'x-auth-token': token }
+            });
+            if (res.ok) {
+                setMyLogs(prev => prev.filter(l => l._id !== id));
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     useEffect(() => {
         fetchData();
     }, []);
 
-    // Helper for category colors
-    const getCatColor = (type) => {
-        switch (type) {
-            case 'service': return 'blue';
-            case 'fellowship': return 'purple';
-            case 'leadership': return 'amber';
-            case 'committee': return 'rose';
-            default: return 'gray';
-        }
-    };
-
-    // Compute stats from local history to ensure consistency with table
-    const computedStats = React.useMemo(() => {
-        const acc = {
-            serviceHours: 0,
-            fellowshipHours: 0,
-            leadershipHours: 0,
-            committeeHours: 0
-        };
-
-        history.forEach(evt => {
-            const userAttendee = evt.attendees?.find(a => {
-                const aId = a.user?._id || a.user;
-                const userId = user?._id || user?.id;
-                return aId && userId && aId.toString() === userId.toString();
-            });
-
-            const override = userAttendee?.creditAmount;
-
-            if (override !== undefined) {
-                // If we have an override, we need to know WHICH category it applies to using the same logic as the backend/table
-                // Backend Logic: Apply difference to FIRST category.
-
-                let totalDefault = 0;
-                if (evt.creditDistribution) {
-                    evt.creditDistribution.forEach(c => totalDefault += c.amount);
-                } else {
-                    totalDefault = evt.creditAmount || 0;
-                }
-
-                const diff = override - totalDefault;
-
-                if (evt.creditDistribution && evt.creditDistribution.length > 0) {
-                    evt.creditDistribution.forEach((c, i) => {
-                        let amount = c.amount;
-                        if (i === 0) amount += diff; // Apply diff to first
-
-                        if (c.type === 'service') acc.serviceHours += amount;
-                        if (c.type === 'fellowship') acc.fellowshipHours += amount;
-                        if (c.type === 'leadership') acc.leadershipHours += amount;
-                        if (c.type === 'committee') acc.committeeHours += amount;
-                    });
-                } else if (evt.creditType && evt.creditType !== 'none') {
-                    // Single type
-                    // If override exists, it applies fully to this type
-                    const val = override; // It is the full value
-                    if (evt.creditType === 'service') acc.serviceHours += val;
-                    if (evt.creditType === 'fellowship') acc.fellowshipHours += val;
-                    if (evt.creditType === 'leadership') acc.leadershipHours += val;
-                    if (evt.creditType === 'committee') acc.committeeHours += val;
-                }
-            } else {
-                // No override, add defaults
-                if (evt.creditDistribution && evt.creditDistribution.length > 0) {
-                    evt.creditDistribution.forEach(c => {
-                        if (c.type === 'service') acc.serviceHours += c.amount;
-                        if (c.type === 'fellowship') acc.fellowshipHours += c.amount;
-                        if (c.type === 'leadership') acc.leadershipHours += c.amount;
-                        if (c.type === 'committee') acc.committeeHours += c.amount;
-                    });
-                } else if (evt.creditType && evt.creditType !== 'none') {
-                    const val = evt.creditAmount || 0;
-                    if (evt.creditType === 'service') acc.serviceHours += val;
-                    if (evt.creditType === 'fellowship') acc.fellowshipHours += val;
-                    if (evt.creditType === 'leadership') acc.leadershipHours += val;
-                    if (evt.creditType === 'committee') acc.committeeHours += val;
-                }
-            }
-        });
-        return acc;
-    }, [history, user]);
+    // Stats = event credits (same logic as backend) + approved self-reported hours
+    const userId = user?._id || user?.id;
+    const computedStats = React.useMemo(
+        () => addServiceLogStats(computeEventStats(history, userId), myLogs),
+        [history, myLogs, userId]
+    );
 
     if (loading) return <div className="p-8 text-center">Loading dashboard...</div>;
 
@@ -126,12 +108,21 @@ const ServiceLogs = () => {
             {/* ...existing header and stats grid... */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
                 <div className="flex flex-col gap-1">
-                    <h2 className="text-3xl md:text-4xl font-black tracking-tight">Service Dashboard</h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-base">Track your progress towards semester requirements.</p>
+                    <h2 className="text-3xl md:text-4xl font-black tracking-tight">My Credits</h2>
+                    <p className="text-gray-500 dark:text-gray-400 text-base">Track your service, fellowship, leadership, and committee credits toward semester requirements.</p>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                    <span className="material-symbols-outlined text-[18px]">calendar_today</span>
-                    <span>Current Semester</span>
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                        <span className="material-symbols-outlined text-[18px]">calendar_today</span>
+                        <span>Current Semester</span>
+                    </div>
+                    <button
+                        onClick={() => setShowLogModal(true)}
+                        className="flex items-center gap-2 h-10 px-5 rounded-lg bg-primary hover:bg-blue-700 text-white text-sm font-bold shadow-md transition-all"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                        <span>Log Hours</span>
+                    </button>
                 </div>
             </div>
 
@@ -289,6 +280,160 @@ const ServiceLogs = () => {
                     )}
                 </div>
             </div>
+
+            {/* My Submissions (self-reported hours) */}
+            <div className="mt-8">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-lg">My Submitted Hours</h3>
+                    <span className="text-xs text-gray-400">Approved hours count toward your totals above</span>
+                </div>
+                <div className="w-full overflow-hidden bg-white dark:bg-[#1a2234] rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                    {myLogs.length === 0 ? (
+                        <div className="p-8 text-center text-gray-500">
+                            Nothing submitted yet. Did service, fellowship, leadership, or committee work outside a chapter event? Click <span className="font-bold">Log Hours</span> to request credit.
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                                        <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Hours</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                    {myLogs.map(log => (
+                                        <tr key={log._id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                            <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                                {/* slice to date-only so UTC midnight doesn't shift a day locally */}
+                                                {format(parseISO(log.date.slice(0, 10)), 'MMM d, yyyy')}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
+                                                {log.description}
+                                                {log.status === 'denied' && log.reviewNote && (
+                                                    <p className="text-xs text-red-500 mt-1">Reason: {log.reviewNote}</p>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${log.category === 'service' ? 'bg-blue-100 text-blue-800' :
+                                                    log.category === 'fellowship' ? 'bg-purple-100 text-purple-800' :
+                                                        log.category === 'leadership' ? 'bg-amber-100 text-amber-800' :
+                                                            'bg-rose-100 text-rose-800'}`}>
+                                                    {log.category}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm font-bold text-gray-600 dark:text-gray-300">{log.hours}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${log.status === 'approved' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                                                    log.status === 'denied' ? 'bg-red-100 text-red-800 border-red-200' :
+                                                        'bg-amber-100 text-amber-800 border-amber-200'} capitalize`}>
+                                                    <span className={`size-1.5 rounded-full ${log.status === 'approved' ? 'bg-emerald-500' : log.status === 'denied' ? 'bg-red-500' : 'bg-amber-500'}`}></span>
+                                                    {log.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm">
+                                                {log.status === 'pending' && (
+                                                    <button onClick={() => withdrawLog(log._id)} className="text-red-500 hover:underline font-medium">
+                                                        Withdraw
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Log Hours Modal */}
+            {showLogModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-[#1a2234] rounded-2xl shadow-2xl w-full max-w-lg p-6 relative">
+                        <button onClick={() => setShowLogModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                            <span className="material-symbols-outlined">close</span>
+                        </button>
+
+                        <h3 className="text-xl font-bold mb-1">Request Credit</h3>
+                        <p className="text-sm text-gray-500 mb-6">Request service, fellowship, leadership, or committee credit for anything done outside a chapter event. An officer will review before it counts.</p>
+
+                        {logMessage && (
+                            <div className={`p-3 rounded-lg mb-4 text-sm font-medium ${logMessage.includes('Submitted') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {logMessage}
+                            </div>
+                        )}
+
+                        <form onSubmit={submitLog} className="flex flex-col gap-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Category</label>
+                                    <select
+                                        value={logForm.category}
+                                        onChange={e => setLogForm({ ...logForm, category: e.target.value })}
+                                        className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                                    >
+                                        <option value="service">Service</option>
+                                        <option value="fellowship">Fellowship</option>
+                                        <option value="leadership">Leadership</option>
+                                        <option value="committee">Committee</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Hours</label>
+                                    <input
+                                        type="number" step="0.25" min="0.25"
+                                        value={logForm.hours}
+                                        onChange={e => setLogForm({ ...logForm, hours: e.target.value })}
+                                        placeholder="e.g. 3"
+                                        className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Date of service</label>
+                                <input
+                                    type="date"
+                                    value={logForm.date}
+                                    onChange={e => setLogForm({ ...logForm, date: e.target.value })}
+                                    className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">What did you do?</label>
+                                <textarea
+                                    value={logForm.description}
+                                    onChange={e => setLogForm({ ...logForm, description: e.target.value })}
+                                    rows={3}
+                                    placeholder="e.g. Volunteered at Habitat for Humanity build site"
+                                    className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Verification contact <span className="text-gray-400 font-normal">(optional)</span></label>
+                                <input
+                                    type="text"
+                                    value={logForm.contact}
+                                    onChange={e => setLogForm({ ...logForm, contact: e.target.value })}
+                                    placeholder="Name / email of someone who can confirm"
+                                    className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button type="button" onClick={() => setShowLogModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">Cancel</button>
+                                <button type="submit" className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 font-medium">Submit for Review</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Manage Completion Modal */}
             {showCompletionModal && selectedEvent && (

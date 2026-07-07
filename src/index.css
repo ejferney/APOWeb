@@ -47,6 +47,86 @@
   background: #334155;
 }
 
+/* ---- Top-down family tree (pure-CSS org chart) ---- */
+.ftree {
+  --ftree-line: #cbd5e1;
+  display: inline-block;
+  text-align: center;
+}
+.ftree ul {
+  display: flex;
+  justify-content: center;
+  padding-top: 22px;
+  position: relative;
+  margin: 0;
+  list-style: none;
+}
+.ftree li {
+  list-style: none;
+  position: relative;
+  padding: 22px 10px 0 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+/* horizontal connectors above each child */
+.ftree li::before,
+.ftree li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 50%;
+  border-top: 2px solid var(--ftree-line);
+  width: 50%;
+  height: 22px;
+}
+.ftree li::after {
+  right: auto;
+  left: 50%;
+  border-left: 2px solid var(--ftree-line);
+}
+/* a single child needs no horizontal connector, just the vertical drop */
+.ftree li:only-child::after,
+.ftree li:only-child::before {
+  display: none;
+}
+.ftree li:only-child {
+  padding-top: 22px;
+}
+/* remove the outer edges of the horizontal connectors */
+.ftree li:first-child::before,
+.ftree li:last-child::after {
+  border: 0 none;
+}
+.ftree li:last-child::before {
+  border-right: 2px solid var(--ftree-line);
+  border-radius: 0 6px 0 0;
+}
+.ftree li:first-child::after {
+  border-radius: 6px 0 0 0;
+}
+/* vertical drop from a parent down to its children */
+.ftree ul ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  border-left: 2px solid var(--ftree-line);
+  width: 0;
+  height: 22px;
+}
+/* the root row has nothing above it */
+.ftree > ul {
+  padding-top: 0;
+}
+.ftree > ul > li {
+  padding-top: 0;
+}
+.ftree > ul > li::before,
+.ftree > ul > li::after {
+  display: none;
+}
+
 .heatmap-cell {
   transition: all 0.2s ease;
 }

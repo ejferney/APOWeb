@@ -1,3 +1,4 @@
+import { API_URL } from '../config';
 import React, { useState, useEffect } from 'react';
 
 const RequirementsEditor = () => {
@@ -14,7 +15,7 @@ const RequirementsEditor = () => {
     const fetchRequirements = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:5000/api/requirements', {
+            const res = await fetch(`${API_URL}/api/requirements`, {
                 headers: { 'x-auth-token': token }
             });
             const data = await res.json();
@@ -48,7 +49,7 @@ const RequirementsEditor = () => {
         try {
             const token = localStorage.getItem('token');
             const promises = requirements.map(req =>
-                fetch(`http://localhost:5000/api/requirements/${req.type}`, {
+                fetch(`${API_URL}/api/requirements/${req.type}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
